@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "WSL": {
+      "commandName": "WSL2",
+      "distributionName": ""
+    },
+    "vcarve tnr-a": {
+      "commandName": "Project",
+      "commandLineArgs": "\"..\\..\\..\\samples\\tnr-a-path.svg\""
+    },
+    "vcarve esitc-t": {
+      "commandName": "Project",
+      "commandLineArgs": "\"..\\..\\..\\samples\\esitc-t-path.svg\""
+    }
+  }
+}
