@@ -2,7 +2,7 @@
 
 namespace vcarve
 {
-    public class Segment
+    public abstract class Segment
     {
         public int pathIdx { get; set; }
         public Point Start {get; protected set;}
@@ -15,7 +15,10 @@ namespace vcarve
         {
             return a.x * b.x + a.y * b.y;
         }
+
+        public abstract Rect BoundingBox();
     }
+
     public record struct Point(double x, double y)
     {
         public static readonly Point Uninitalized = new(double.NaN, double.NaN);
@@ -45,6 +48,21 @@ namespace vcarve
         public readonly double MinY => Math.Min(a.y, b.y);
         public readonly double MaxX => Math.Max(a.x, b.x);
         public readonly double MaxY => Math.Max(a.y, b.y);
+
+        public Rect(double x1,  double y1, double x2, double y2) : this(new Point(x1,y2), new Point(x2,y2)) { }
+
+        /// <summary>
+        /// Returns the largest vertical/horizontal distance between this and another rectangle
+        /// </summary>
+        /// <param name="other">Measure distance to this rectangle</param>
+        /// <returns>Largest h/v distance. Negative values means overlap</returns>
+        public double DistanceTo(Rect other)
+        {
+            return Math.Max(
+                Math.Abs(MidX - other.MidX) - (Width + other.Width) / 2,
+                Math.Abs(MidY - other.MidY) - (Height + other.Height) / 2
+                );
+        }
     }
 
     class LineSegment : Segment
@@ -83,9 +101,23 @@ namespace vcarve
         {
             return $"Line S:[{Start.x:0.###}:{Start.y:0.###}] E:[{End.x:0.###}:{End.y:0.###}] ";
         }
+
+        private Rect? _bbox;
+        public override Rect BoundingBox() => _bbox ??= new Rect(new Point(Math.Min(Start.x, End.x), Math.Min(Start.y, End.y)), new Point(Math.Max(Start.x, End.x), Math.Max(Start.y, End.y)));
     }
 
-    class QuadraticBezierSegment : Segment
+    abstract class BezierSegment : Segment
+    {
+        private Bezier _bez;
+
+        protected abstract Bezier CreateBezier();
+        public Bezier Bez { get { return _bez ??= CreateBezier(); } }
+
+        private Rect? _bbox;
+        public override Rect BoundingBox() => _bbox ??= Bez.BoundingBox();
+    }
+
+    class QuadraticBezierSegment : BezierSegment
     {
         public QuadraticBezierSegment(Point start, Point control, Point end)
         {
@@ -101,10 +133,10 @@ namespace vcarve
             return $"Bezier S:[{Start.x:0.###}:{Start.y:0.###}] E:[{End.x:0.###}:{End.y:0.###}] C:[{Control.x:0.###}:{Control.y:0.###}]";
         }
 
-        public Bezier AsBezier() => new Bezier(Start, End, Control);
+        protected override Bezier CreateBezier() => new Bezier(Start, End, Control);
     }
 
-    class CubicBezierSegment : Segment
+    class CubicBezierSegment : BezierSegment
     {
         public CubicBezierSegment(Point start, Point control1, Point control2, Point end)
         {
@@ -122,6 +154,6 @@ namespace vcarve
             return $"Bezier S:[{Start.x:0.###}:{Start.y:0.###}] E:[{End.x:0.###}:{End.y:0.###}] C1:[{Control1.x:0.###}:{Control1.y:0.###}] C2:[{Control2.x:0.###}:{Control2.y:0.###}]";
         }
 
-        public Bezier AsBezier() => new Bezier(Start, End, Control1, Control2);
+        protected override Bezier CreateBezier() => new Bezier(Start, End, Control1, Control2);
     }
 }
