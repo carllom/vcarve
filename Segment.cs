@@ -1,5 +1,4 @@
-﻿using System.Numerics;
-using vcarve.BezierSharp;
+﻿using vcarve.BezierSharp;
 
 namespace vcarve
 {
@@ -27,8 +26,6 @@ namespace vcarve
         public static Point operator +(Point a, Point b) => new Point(a.x + b.x, a.y + b.y);
         public static Point operator -(Point a, Point b) => new Point(a.x - b.x, a.y - b.y);
 
-
-        //public static explicit operator Point(TPoint tp) => new Point(tp.x, tp.y);
         public Point Normalize()
         {
             return new Point(x / Length, y / Length);

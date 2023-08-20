@@ -32,13 +32,14 @@ namespace vcarve
                         var s = ParsePath(d);
                         if (s?.Count() > 0) _svgpaths.Add(s);
 
-                        var res = RenderPath(s);
-                        
+                        var res = RenderToolPath(s);
+
                         File.Copy(path, TargetPath(path), true);
                         AppendVisualization(TargetPath(path), VisualizeContour(s));
                         AppendVisualization(TargetPath(path), VisualizeSegments(s));
-                        AppendVisualization(TargetPath(path), VisualizeTrace(s));
-                        AppendVisualization(TargetPath(path), VisualizePath(res));
+                        AppendVisualization(TargetPath(path), VisualizeBBox(s));
+                        AppendVisualization(TargetPath(path), VisualizeNormals(s));
+                        AppendVisualization(TargetPath(path), VisualizeToolPath(res));
 
                         RenderGCode(GCodePath(path), res);
                     }
@@ -216,7 +217,7 @@ namespace vcarve
             return segments;
         }
 
-        private IEnumerable<ToolPathSegment> RenderPath(IEnumerable<Segment> segments)
+        private IEnumerable<ToolPathSegment> RenderToolPath(IEnumerable<Segment> segments)
         {
             double toolradius = 2;
             List<ToolPathSegment> result = new();
@@ -230,7 +231,7 @@ namespace vcarve
                         break;
                     case QuadraticBezierSegment qbseg:
                         var qbez = qbseg.AsBezier();
-                        for (double t = 0.01; t < 1; t+=.05)
+                        for (double t = 0; t <= 1; t+=.1)
                         {
                             Point p = qbez.Compute(t); // Point on traced curve
                             Point n = qbez.Normal(t); // Normal at current t
@@ -377,7 +378,7 @@ namespace vcarve
             return sb.ToString();
         }
 
-        private static string VisualizeTrace(IEnumerable<Segment> s)
+        private static string VisualizeNormals(IEnumerable<Segment> s)
         {
             var sb = new StringBuilder();
             foreach (var seg in s)
@@ -405,7 +406,6 @@ namespace vcarve
             }
             return sb.ToString();
         }
-
 
         private static string VisualizeSegments(IEnumerable<Segment> s)
         {
@@ -445,7 +445,7 @@ namespace vcarve
             return sb.ToString();
         }
 
-        private static string VisualizePath(IEnumerable<ToolPathSegment> res)
+        private static string VisualizeToolPath(IEnumerable<ToolPathSegment> res)
         {
             var sb = new StringBuilder();
             foreach (var c in res)
@@ -453,6 +453,37 @@ namespace vcarve
                 sb.AppendSvgCircle(c.p, c.d, "teal");
             }
 
+            return sb.ToString();
+        }
+
+        private string VisualizeBBox(IEnumerable<Segment> s)
+        {
+            var sb = new StringBuilder();
+            int c = 0;
+            foreach (var seg in s)
+            {
+                switch (seg)
+                {
+                    case CubicBezierSegment cbseg:
+                        break;
+                    case QuadraticBezierSegment qbseg:
+                        var qbez = qbseg.AsBezier();
+                        var bbox = qbez.bbox();
+                        // <rect x="400" y="100" width="400" height="200" fill = "yellow" stroke = "navy" stroke - width = "10" />
+                        sb.AppendLine($"<rect x=\"{bbox.a.x}\" y=\"{bbox.a.y}\" width=\"{bbox.b.x-bbox.a.x}\" height=\"{bbox.b.y - bbox.a.y}\" fill=\"none\" stroke=\"red\" stroke-width=\"0.1\" />");
+                        break;
+                    case LineSegment line:
+                        if (line.Length < 0.001) 
+                            break;
+                        //sb.AppendLine($"<rect x=\"{bbox.a.x}\" y=\"{bbox.a.y}\" width=\"{bbox.b.x - bbox.a.x}\" height=\"{bbox.b.y - bbox.a.y}\" fill=\"none\" stroke=\"red\" stroke-width=\"0.1\" />");
+                        break;
+                    default:
+                        throw new NotImplementedException($"Currently there is no visual representation for {seg.GetType().Name}");
+                        break;
+                }
+
+                //if (c++ > 0) break;
+            }
             return sb.ToString();
         }
 

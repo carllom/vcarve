@@ -1,5 +1,4 @@
-﻿
-namespace vcarve.BezierSharp
+﻿namespace vcarve.BezierSharp
 {
     public record struct TPoint(double x, double y, double t)
     {
@@ -275,6 +274,69 @@ namespace vcarve.BezierSharp
                 }
             }
             return (mdist, mpos);
+        }
+
+        public static double[] DRoots(double[] p)
+        {
+            // quadratic roots are easy (begin-c1 c1-c2 c2-end)
+            if (p.Length == 3)
+            {
+                double a = p[0], // begin
+                  b = p[1], // c1
+                  c = p[2], // c2
+                  d = a - 2 * b + c;
+                if (d != 0)
+                {
+                    double m1 = -Math.Sqrt(b * b - a * c),
+                      m2 = -a + b,
+                      v1 = -(m1 + m2) / d,
+                      v2 = -(-m1 + m2) / d;
+                    return new[] { v1, v2 };
+                }
+                else if (b != c && d == 0)
+                {
+                    return new[] {(2 * b - c) / (2 * (b - c))};
+                }
+                return Array.Empty<double>();
+            }
+
+            // linear roots are even easier (begin-c c-end)
+            if (p.Length == 2)
+            {
+                double a = p[0],
+                  b = p[1];
+                if (a != b)
+                {
+                    return new[] { a / (a - b) };
+                }
+                return Array.Empty<double>();
+            }
+            return Array.Empty<double>();
+        }
+
+        public static (Point min, Point max) GetMinMax(Bezier curve, double[] ts)
+        {
+            double minx = double.MaxValue, maxx = double.MinValue, miny = double.MaxValue, maxy = double.MinValue;
+
+            IEnumerable<double> list = ts;
+            if (!list.Any(t => t==0))
+            {
+                list = list.Prepend(0);
+            }
+            if (!list.Any(t => t == 1))
+            {
+                list = list.Append(1);
+            }
+
+            foreach (var t in list)
+            {
+                var c = curve.Compute(t);
+                minx = Math.Min(c.x, minx);
+                maxx = Math.Max(c.x, maxx);
+                miny = Math.Min(c.y, miny);
+                maxy = Math.Max(c.y, maxy);
+            }
+            return (new Point(minx, miny), new Point(maxx, maxy));
         }
     }
 }
@@ -768,30 +830,30 @@ const utils = {
     return shape;
   },
 
-  getminmax: function (curve, d, list) {
-    if (!list) return { min: 0, max: 0 };
-    let min = nMax,
-      max = nMin,
-      t,
-      c;
-    if (list.indexOf(0) === -1) {
-      list = [0].concat(list);
-    }
-    if (list.indexOf(1) === -1) {
-      list.push(1);
-    }
-    for (let i = 0, len = list.length; i < len; i++) {
-      t = list[i];
-      c = curve.get(t);
-      if (c[d] < min) {
-        min = c[d];
-      }
-      if (c[d] > max) {
-        max = c[d];
-      }
-    }
-    return { min: min, mid: (min + max) / 2, max: max, size: max - min };
-  },
+  //getminmax: function (curve, d, list) {
+  //  if (!list) return { min: 0, max: 0 };
+  //  let min = nMax,
+  //    max = nMin,
+  //    t,
+  //    c;
+  //  if (list.indexOf(0) === -1) {
+  //    list = [0].concat(list);
+  //  }
+  //  if (list.indexOf(1) === -1) {
+  //    list.push(1);
+  //  }
+  //  for (let i = 0, len = list.length; i < len; i++) {
+  //    t = list[i];
+  //    c = curve.get(t);
+  //    if (c[d] < min) {
+  //      min = c[d];
+  //    }
+  //    if (c[d] > max) {
+  //      max = c[d];
+  //    }
+  //  }
+  //  return { min: min, mid: (min + max) / 2, max: max, size: max - min };
+  //},
 
   //align: function (points, line) {
   //  const tx = line.p1.x,
@@ -899,37 +961,37 @@ const utils = {
     }
   },
 
-  droots: function (p) {
-    // quadratic roots are easy
-    if (p.length === 3) {
-      const a = p[0],
-        b = p[1],
-        c = p[2],
-        d = a - 2 * b + c;
-      if (d !== 0) {
-        const m1 = -sqrt(b * b - a * c),
-          m2 = -a + b,
-          v1 = -(m1 + m2) / d,
-          v2 = -(-m1 + m2) / d;
-        return [v1, v2];
-      } else if (b !== c && d === 0) {
-        return [(2 * b - c) / (2 * (b - c))];
-      }
-      return [];
-    }
+  //droots: function (p) {
+  //  // quadratic roots are easy
+  //  if (p.length === 3) {
+  //    const a = p[0],
+  //      b = p[1],
+  //      c = p[2],
+  //      d = a - 2 * b + c;
+  //    if (d !== 0) {
+  //      const m1 = -sqrt(b * b - a * c),
+  //        m2 = -a + b,
+  //        v1 = -(m1 + m2) / d,
+  //        v2 = -(-m1 + m2) / d;
+  //      return [v1, v2];
+  //    } else if (b !== c && d === 0) {
+  //      return [(2 * b - c) / (2 * (b - c))];
+  //    }
+  //    return [];
+  //  }
 
-    // linear roots are even easier
-    if (p.length === 2) {
-      const a = p[0],
-        b = p[1];
-      if (a !== b) {
-        return [a / (a - b)];
-      }
-      return [];
-    }
+  //  // linear roots are even easier
+  //  if (p.length === 2) {
+  //    const a = p[0],
+  //      b = p[1];
+  //    if (a !== b) {
+  //      return [a / (a - b)];
+  //    }
+  //    return [];
+  //  }
 
-    return [];
-  },
+  //  return [];
+  //},
 
   curvature: function (t, d1, d2, _3d, kOnly) {
     let num,

@@ -1,6 +1,4 @@
 ﻿
-using static System.Runtime.InteropServices.JavaScript.JSType;
-
 namespace vcarve.BezierSharp
 {
     /// <summary>
@@ -78,6 +76,41 @@ namespace vcarve.BezierSharp
             return new TPoint(-d.y / q, d.x / q, t);
         }
 
+        /// <summary>
+        /// Calculates all the extrema on a curve. Extrema are calculated for each dimension, rather than for the full curve, so that the result is not the number of convex/concave transitions, but the number of those transitions for each separate dimension.
+        /// These points can be used to determine the reach of a curve.
+        /// </summary>
+        /// <returns>Each dimension lists the array of t values at which an extremum occurs. The values property is the aggregate of the t values across all dimensions</returns>
+        public (double[] x, double[] y, double[] t) extrema()
+        {
+            List<double> roots = new();
+
+            var xroots = BezierUtils.DRoots(dpoints.First().Select(d => d.x).ToArray());
+            if (points.Length == 4)
+                xroots = xroots.Concat(BezierUtils.DRoots(dpoints.Skip(1).First().Select(d => d.x).ToArray())).ToArray();
+            roots.AddRange(xroots.OrderBy(r => r));
+            var rootsx = xroots.Where(r => r >= 0 && r <= 1).ToArray();
+
+            var yroots = BezierUtils.DRoots(dpoints.First().Select(d => d.y).ToArray());
+            if (points.Length == 4)
+                yroots = yroots.Concat(BezierUtils.DRoots(dpoints.Skip(1).First().Select(d => d.y).ToArray())).ToArray();
+            roots.AddRange(yroots.OrderBy(r => r));
+            var rootsy = yroots.Where(r => r >= 0 && r <= 1).ToArray();
+
+            roots = roots.OrderBy(r => r).Where((r, idx) => roots.IndexOf(r) == idx).ToList();
+
+            return (rootsx, rootsy, roots.ToArray());
+        }
+
+        /// <summary>
+        /// Calculates the bounding box for this curve, based on its hull coordinates and its extrema.
+        /// </summary>
+        /// <returns></returns>
+        public (Point a, Point b) bbox()
+        {
+            var extr = extrema();
+            return BezierUtils.GetMinMax(this, extr.x.Concat(extr.y).ToArray());
+        }
 
         private void Verify() {
             var print = CoordDigest();
@@ -141,7 +174,7 @@ namespace vcarve.BezierSharp
             var l = LUT.Length - 1;
             var closest = BezierUtils.Closest(LUT, point);
             var mpos = closest.index;
-            double t1 = (mpos - 1) / l,
+            double t1 = (double)(mpos - 1) / l,
             t2 = (double)(mpos + 1) / l,
             step = 0.1 / l;
 
@@ -626,45 +659,45 @@ class Bezier {
     return result.right.split(t2).left;
   }
 
-  extrema() {
-    const result = {};
-    let roots = [];
+  //extrema() {
+  //  const result = {};
+  //  let roots = [];
 
-    this.dims.forEach(
-      function (dim) {
-        let mfn = function (v) {
-          return v[dim];
-        };
-        let p = this.dpoints[0].map(mfn);
-        result[dim] = utils.droots(p);
-        if (this.order === 3) {
-          p = this.dpoints[1].map(mfn);
-          result[dim] = result[dim].concat(utils.droots(p));
-        }
-        result[dim] = result[dim].filter(function (t) {
-          return t >= 0 && t <= 1;
-        });
-        roots = roots.concat(result[dim].sort(utils.numberSort));
-      }.bind(this)
-    );
+  //  this.dims.forEach(
+  //    function (dim) {
+  //      let mfn = function (v) {
+  //        return v[dim];
+  //      };
+  //      let p = this.dpoints[0].map(mfn);
+  //      result[dim] = utils.droots(p);
+  //      if (this.order === 3) {
+  //        p = this.dpoints[1].map(mfn);
+  //        result[dim] = result[dim].concat(utils.droots(p));
+  //      }
+  //      result[dim] = result[dim].filter(function (t) {
+  //        return t >= 0 && t <= 1;
+  //      });
+  //      roots = roots.concat(result[dim].sort(utils.numberSort));
+  //    }.bind(this)
+  //  );
 
-    result.values = roots.sort(utils.numberSort).filter(function (v, idx) {
-      return roots.indexOf(v) === idx;
-    });
+  //  result.values = roots.sort(utils.numberSort).filter(function (v, idx) {
+  //    return roots.indexOf(v) === idx;
+  //  });
 
-    return result;
-  }
+  //  return result;
+  //}
 
-  bbox() {
-    const extrema = this.extrema(),
-      result = {};
-    this.dims.forEach(
-      function (d) {
-        result[d] = utils.getminmax(this, d, extrema[d]);
-      }.bind(this)
-    );
-    return result;
-  }
+  //bbox() {
+  //  const extrema = this.extrema(),
+  //    result = {};
+  //  this.dims.forEach(
+  //    function (d) {
+  //      result[d] = utils.getminmax(this, d, extrema[d]);
+  //    }.bind(this)
+  //  );
+  //  return result;
+  //}
 
   overlaps(curve) {
     const lbbox = this.bbox(),
