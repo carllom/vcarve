@@ -1,15 +1,15 @@
 ﻿using System.Globalization;
-using System.IO;
 using System.Text;
 using System.Xml;
 using vcarve.BezierSharp;
+using vcarve.GCode;
 
 namespace vcarve
 {
     internal class SvgSource
     {
         private readonly string _path;
-        private List<List<Segment>> _svgpaths;
+        private List<IEnumerable<Segment>> _svgpaths;
 
         // Determine clockwise or counter-clockwise: https://stackoverflow.com/a/1165943
 
@@ -30,13 +30,13 @@ namespace vcarve
                     {
                         var d = xmlReader.GetAttribute("d");
                         var s = ParsePath(d);
-                        if (s?.Count() > 0) _svgpaths.Add(new List<Segment>(s));
+                        if (s?.Count() > 0) _svgpaths.Add(s);
 
                         var res = RenderPath(s);
                         
                         File.Copy(path, TargetPath(path), true);
                         AppendVisualization(TargetPath(path), VisualizeContour(s));
-                        //AppendVisualization(TargetPath(path), VisualizeSegments(s));
+                        AppendVisualization(TargetPath(path), VisualizeSegments(s));
                         AppendVisualization(TargetPath(path), VisualizeTrace(s));
                         AppendVisualization(TargetPath(path), VisualizePath(res));
 
@@ -56,10 +56,11 @@ namespace vcarve
         private IEnumerable<Segment> ParsePath(string? pathspec)
         {
             if (string.IsNullOrWhiteSpace(pathspec)) return Array.Empty<Segment>();
-            var segments = new List<Segment>();
             var tokens = pathspec.Split(new[] {'\t',' ',','}, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             Point initial = Point.Uninitalized, current = Point.Uninitalized;
 
+            var pathIdx = 0;
+            var segments = new List<Segment>();
             string command = string.Empty;
             for (int i = 0; i < tokens.Length;)
             {
@@ -96,7 +97,7 @@ namespace vcarve
                             var x1 = Number(tokens[i++]);
                             var y1 = Number(tokens[i++]);
                             var end = new Point(x1, y1);
-                            segments.Add(new LineSegment(current, end));
+                            segments.Add(new LineSegment(current, end) { pathIdx = pathIdx });
                             current = end;
                         }
                         break;
@@ -105,7 +106,7 @@ namespace vcarve
                             var x1r = current.x + Number(tokens[i++]);
                             var y1r = current.y + Number(tokens[i++]);
                             var end = new Point(x1r, y1r);
-                            segments.Add(new LineSegment(current, end));
+                            segments.Add(new LineSegment(current, end) { pathIdx = pathIdx });
                             current = end;
                         }
                         break;
@@ -113,7 +114,7 @@ namespace vcarve
                         {
                             var x1 = Number(tokens[i++]);
                             var end = new Point(x1, current.y);
-                            segments.Add(new LineSegment(current, end));
+                            segments.Add(new LineSegment(current, end) { pathIdx = pathIdx });
                             current = end;
                         }
                         break;
@@ -121,7 +122,7 @@ namespace vcarve
                         {
                             var x1r = current.x + Number(tokens[i++]);
                             var end = new Point(x1r, current.y);
-                            segments.Add(new LineSegment(current, end));
+                            segments.Add(new LineSegment(current, end) { pathIdx = pathIdx });
                             current = end;
                         }
                         break;
@@ -129,7 +130,7 @@ namespace vcarve
                         {
                             var y1 = Number(tokens[i++]);
                             var end = new Point(current.x, y1);
-                            segments.Add(new LineSegment(current, end));
+                            segments.Add(new LineSegment(current, end) { pathIdx = pathIdx });
                             current = end;
                         }
                         break;
@@ -137,7 +138,7 @@ namespace vcarve
                         {
                             var y1r = current.y + Number(tokens[i++]);
                             var end = new Point(current.x, y1r);
-                            segments.Add(new LineSegment(current, end));
+                            segments.Add(new LineSegment(current, end) { pathIdx = pathIdx });
                             current = end;
                         }
                         break;
@@ -150,7 +151,7 @@ namespace vcarve
                             var xend = Number(tokens[i++]);
                             var yend = Number(tokens[i++]);
                             var end = new Point(xend, yend);
-                            segments.Add(new CubicBezierSegment(current, new Point(c1x, c1y), new Point(c2x, c2y), end));
+                            segments.Add(new CubicBezierSegment(current, new Point(c1x, c1y), new Point(c2x, c2y), end) { pathIdx = pathIdx });
                             current = end;
                         }
                         break;
@@ -163,7 +164,7 @@ namespace vcarve
                             var xend = current.x + Number(tokens[i++]);
                             var yend = current.y + Number(tokens[i++]);
                             var end = new Point(xend, yend);
-                            segments.Add(new CubicBezierSegment(current, new Point(c1x, c1y), new Point(c2x, c2y), end));
+                            segments.Add(new CubicBezierSegment(current, new Point(c1x, c1y), new Point(c2x, c2y), end) { pathIdx = pathIdx });
                             current = end;
                         }
                         break;
@@ -175,7 +176,7 @@ namespace vcarve
                             var yend = Number(tokens[i++]);
                             var control = new Point(cx, cy);
                             var end = new Point(xend, yend);
-                            segments.Add(new QuadraticBezierSegment(current, control, end));
+                            segments.Add(new QuadraticBezierSegment(current, control, end) { pathIdx = pathIdx });
                             current = end;
                         }
                         break;
@@ -187,7 +188,7 @@ namespace vcarve
                             var yend = current.y + Number(tokens[i++]);
                             var control = new Point(cx, cy);
                             var end = new Point(xend, yend);
-                            segments.Add(new QuadraticBezierSegment(current, control, end));
+                            segments.Add(new QuadraticBezierSegment(current, control, end) { pathIdx = pathIdx });
                             current = end;
                         }
                         break;
@@ -203,8 +204,9 @@ namespace vcarve
                         break;
                     case "Z": // Close path
                     case "z":
-                        segments.Add(new LineSegment(current, initial));
+                        segments.Add(new LineSegment(current, initial) { pathIdx = pathIdx });
                         current = initial;
+                        pathIdx++; // Next sub-path index
                         break;
                     default:
                         throw new NotImplementedException($"Command '{command}' not implemented yet");
@@ -214,19 +216,21 @@ namespace vcarve
             return segments;
         }
 
-        private IEnumerable<(Point,double)> RenderPath(IEnumerable<Segment> segments)
+        private IEnumerable<ToolPathSegment> RenderPath(IEnumerable<Segment> segments)
         {
             double toolradius = 2;
-            List<(Point, double)> result = new();
+            List<ToolPathSegment> result = new();
+            int segidx = 1, count = segments.Count();
             foreach (var segment in segments)
             {
                 switch (segment)
                 {
                     case CubicBezierSegment cbseg:
+                        // Skip silently for now
                         break;
                     case QuadraticBezierSegment qbseg:
                         var qbez = qbseg.AsBezier();
-                        for (double t = 0; t <= 1; t+=.1)
+                        for (double t = 0.01; t < 1; t+=.05)
                         {
                             Point p = qbez.Compute(t); // Point on traced curve
                             Point n = qbez.Normal(t); // Normal at current t
@@ -238,8 +242,9 @@ namespace vcarve
                                 bool touched = false;
                                 foreach(var oseg in segments)
                                 {
-                                    if (oseg == segment) continue;
+                                    if (oseg == segment) continue; // Do not compare the segment with itself
                                     var cp = ClosestPoint(oseg, tc);
+                                    if (cp.point == p && (t == 0 || t ==1)) continue; // Do not take endpoints of neighbouring segments into account;
                                     if (cp.dist <= d)
                                     {
                                         touched = true;
@@ -252,17 +257,17 @@ namespace vcarve
                                     break; // We did not touch any other curves, this is a safe depth
                                 }
                             }
-                            result.Add((tc, depth));
-                            Console.WriteLine("added point");
+                            result.Add(new(tc, depth, qbseg.pathIdx));
                         }
                         break;
                     case LineSegment line:
+                        // Skip silently for now
                         break;
                     default:
                         throw new NotImplementedException($"Segment type {segment.GetType().Name} is not supported");
                         break;
                 }
-                Console.WriteLine("Segment done");
+                Console.WriteLine($"{segidx++}/{count} segments done");
             }
             return result;
         }
@@ -284,19 +289,27 @@ namespace vcarve
         }
 
         private static string GCodePath(string path) => Path.Combine(Path.GetDirectoryName(path), $"{Path.GetFileNameWithoutExtension(path)}.gcode");
-        private void RenderGCode(string path, IEnumerable<(Point p, double d)> toolpath)
+        private void RenderGCode(string path, IEnumerable<ToolPathSegment> toolpath)
         {
             using var file = new StreamWriter(path);
             file.WriteLine("%");
             file.WriteLine("(Generated by vcarve)");
-            var first = toolpath.First();
-            file.WriteLine("G00 Z0.5");
-            file.WriteLine($"G00 X{first.p.x} Y{-first.p.y}");
-            file.WriteLine("G01 F100");
+            file.WriteLine("G01 F100 (feed rate)");
+            var pathidx = -1; //first.idx;
             foreach (var c in toolpath)
             {
-                file.WriteLine($"G01 X{c.p.x} Y{-c.p.y} Z{-c.d}");
+                if (c.idx != pathidx)
+                {
+                    file.WriteLine("(new sub-path)");
+                    file.WriteLine("G00 Z0.5");
+                    file.WriteLine($"G00 X{c.p.x} Y{-c.p.y}");
+                    pathidx = c.idx;
+                }
+                file.WriteLine($"G01 X{c.p.x} Y{-c.p.y} Z{-c.d*2}");
             }
+            file.WriteLine("(end)");
+            file.WriteLine("G28 G91 X0 Y0 Z0.5");
+            
         }
 
         #region Visualization
@@ -334,7 +347,7 @@ namespace vcarve
                     case CubicBezierSegment cbseg:
                         // Cubic curve approximation
                         var cbez = new Bezier(cbseg.Start, cbseg.End, cbseg.Control1, cbseg.Control2);
-                        foreach (var cp in cbez.getLUT())
+                        foreach (var cp in cbez.GetLUT())
                         {
                             sb.AppendSvgDisc(cp, 0.1, "red", 0.3);
                         }
@@ -342,7 +355,7 @@ namespace vcarve
                     case QuadraticBezierSegment qbseg:
                         // Quadratic curve approximation
                         var qbez = new Bezier(qbseg.Start, qbseg.End, qbseg.Control);
-                        foreach (var cp in qbez.getLUT())
+                        foreach (var cp in qbez.GetLUT())
                         {
                             sb.AppendSvgDisc(cp, 0.1, "red", 0.3);
                         }
@@ -432,12 +445,12 @@ namespace vcarve
             return sb.ToString();
         }
 
-        private static string VisualizePath(IEnumerable<(Point, double)> res)
+        private static string VisualizePath(IEnumerable<ToolPathSegment> res)
         {
             var sb = new StringBuilder();
             foreach (var c in res)
             {
-                sb.AppendSvgCircle(c.Item1, c.Item2, "teal");
+                sb.AppendSvgCircle(c.p, c.d, "teal");
             }
 
             return sb.ToString();

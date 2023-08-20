@@ -5,6 +5,7 @@ namespace vcarve
 {
     public class Segment
     {
+        public int pathIdx { get; set; }
         public Point Start {get; protected set;}
         public Point End {get; protected set;}
 

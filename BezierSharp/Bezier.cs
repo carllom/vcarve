@@ -80,14 +80,14 @@ namespace vcarve.BezierSharp
 
 
         private void Verify() {
-            var print = coordDigest();
+            var print = CoordDigest();
             if (print != _print) {
                 _print = print;
                 Update();
             }
         }
 
-        private string coordDigest() {
+        private string CoordDigest() {
             return points.Select((p, i) => $"{i}{p.x}{p.y}").Aggregate((a, b) => a + b);
         }
 
@@ -98,7 +98,7 @@ namespace vcarve.BezierSharp
         /// </summary>
         /// <param name="steps">number of coordinates-1</param>
         /// <returns>Lookup table for curve in equidistant steps</returns>
-        public TPoint[] getLUT(int steps = 100) {
+        public TPoint[] GetLUT(int steps = 100) {
             Verify();
             if (_lut.Length == steps + 1) {
                 return _lut;
@@ -137,7 +137,7 @@ namespace vcarve.BezierSharp
         /// <returns></returns>
         public (TPoint point, double distance)  Project(Point point) {
             // step 1: coarse check
-            var LUT = getLUT();
+            var LUT = GetLUT();
             var l = LUT.Length - 1;
             var closest = BezierUtils.Closest(LUT, point);
             var mpos = closest.index;
