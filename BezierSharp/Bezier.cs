@@ -106,10 +106,11 @@ namespace vcarve.BezierSharp
         /// Calculates the bounding box for this curve, based on its hull coordinates and its extrema.
         /// </summary>
         /// <returns></returns>
-        public (Point a, Point b) bbox()
+        public Rect BoundingBox()
         {
             var extr = extrema();
-            return BezierUtils.GetMinMax(this, extr.x.Concat(extr.y).ToArray());
+            var m = BezierUtils.GetMinMax(this, extr.x.Concat(extr.y).ToArray());
+            return new Rect(m.min, m.max);
         }
 
         private void Verify() {

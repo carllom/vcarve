@@ -338,6 +338,20 @@
             }
             return (new Point(minx, miny), new Point(maxx, maxy));
         }
+
+        /// <summary>
+        /// Returns thw smallest distance between two bounding boxes
+        /// </summary>
+        /// <param name="b1"></param>
+        /// <param name="b2"></param>
+        /// <returns>Smallest distance. Negative values means overlap</returns>
+        public static double BBoxDistance(Rect b1, Rect b2)
+        {
+            return Math.Min(
+                Math.Abs(b1.MidX - b2.MidX) - (b1.Width + b2.Width) / 2,
+                Math.Abs(b1.MidY - b2.MidY) - (b1.Height + b2.Height) / 2
+                );
+        }
     }
 }
 

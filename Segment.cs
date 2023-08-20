@@ -34,6 +34,19 @@ namespace vcarve
         public readonly double Length => Math.Sqrt(x * x + y * y);
     }
 
+    public record struct Rect(Point a, Point b)
+    {
+        public readonly double Width => Math.Abs(a.x - b.x);
+        public readonly double Height => Math.Abs(a.y - b.y);
+        public readonly double MidX => (a.x + b.x) / 2;
+        public readonly double MidY => (a.y - b.y) / 2;
+        
+        public readonly double MinX => Math.Min(a.x, b.x);
+        public readonly double MinY => Math.Min(a.y, b.y);
+        public readonly double MaxX => Math.Max(a.x, b.x);
+        public readonly double MaxY => Math.Max(a.y, b.y);
+    }
+
     class LineSegment : Segment
     {
         public LineSegment(Point start, Point end)

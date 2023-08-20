@@ -35,9 +35,9 @@ namespace vcarve
                         var res = RenderToolPath(s);
 
                         File.Copy(path, TargetPath(path), true);
+                        AppendVisualization(TargetPath(path), VisualizeBBox(s));
                         AppendVisualization(TargetPath(path), VisualizeContour(s));
                         AppendVisualization(TargetPath(path), VisualizeSegments(s));
-                        AppendVisualization(TargetPath(path), VisualizeBBox(s));
                         AppendVisualization(TargetPath(path), VisualizeNormals(s));
                         AppendVisualization(TargetPath(path), VisualizeToolPath(res));
 
@@ -468,9 +468,8 @@ namespace vcarve
                         break;
                     case QuadraticBezierSegment qbseg:
                         var qbez = qbseg.AsBezier();
-                        var bbox = qbez.bbox();
-                        // <rect x="400" y="100" width="400" height="200" fill = "yellow" stroke = "navy" stroke - width = "10" />
-                        sb.AppendLine($"<rect x=\"{bbox.a.x}\" y=\"{bbox.a.y}\" width=\"{bbox.b.x-bbox.a.x}\" height=\"{bbox.b.y - bbox.a.y}\" fill=\"none\" stroke=\"red\" stroke-width=\"0.1\" />");
+                        var bbox = qbez.BoundingBox();
+                        sb.AppendLine($"<rect x=\"{bbox.MinX}\" y=\"{bbox.MinY}\" width=\"{bbox.Width}\" height=\"{bbox.Height}\" fill=\"black\" stroke=\"red\" stroke-width=\"0.1\" opacity=\"0.2\" />");
                         break;
                     case LineSegment line:
                         if (line.Length < 0.001) 
