@@ -18,6 +18,10 @@ namespace vcarve
             _path = path;
             _svgpaths = new();
 
+            tpNoD = NumberOfDecimals(ToolPrecision);
+            srNoD = NumberOfDecimals(StepResolution);
+            tsNoD = NumberOfDecimals(TraceStep);
+
             Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
             using var fstream = File.OpenText(path);
             using var xmlReader = XmlReader.Create(fstream);
@@ -46,6 +50,24 @@ namespace vcarve
                 }
             }
         }
+
+        // Precision configuration
+        private int NumberOfDecimals(double value)
+        {
+            var s = value.ToString(CultureInfo.InvariantCulture);
+            var dp = s.IndexOf(CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator) + 1;
+            if (dp == -1) return 0;
+            return s.Length - dp;
+        }
+        private const double ToolPrecision = 0.01; // Tool movement precision
+        private readonly int tpNoD; // Number of decimals for tool precision
+
+        private const double StepResolution = 0.01; // Tool depth step resolution
+        private readonly int srNoD; // Number of decimals for depth step resolution
+
+        private const double TraceStep = 0.1; // Tracing step resolution (in terms of t)
+        private readonly int tsNoD; // Number of decimals for tracing step resolution
+
 
         private static double Number(string s) => double.Parse(s, CultureInfo.InvariantCulture);
 
@@ -222,8 +244,10 @@ namespace vcarve
             double toolRadius = 2;
             List<ToolPathSegment> result = new();
             int segidx = 1, count = segments.Count();
+            int cnt = 0;
             foreach (var segment in segments)
             {
+                cnt++;
                 var neighbourSegs = segments.Where(s => s != segment && segment.BoundingBox().DistanceTo(s.BoundingBox()) <= toolRadius * 2).ToList(); // Get all segments that are within the tool radius of the current segment
 
                 switch (segment)
@@ -233,14 +257,16 @@ namespace vcarve
                         break;
                     case QuadraticBezierSegment qbSeg:
                         var qbez = qbSeg.Bez;
-                        for (double t = 0; t <= 1; t+=.1)
+
+                        for (double t = 0; t <= 1; t = Math.Round(t + TraceStep, tsNoD))
                         {
                             Point p = qbez.Compute(t); // Point on traced curve
                             Point n = qbez.Normal(t); // Normal at current t
                             Point tc = Point.Uninitalized; // Tool center point
                             double depth = 0;
-                            for (double d = toolradius; d>0; d-=.1) // Begin with max tool radius and decrease
+                            for (double d = toolRadius; d>0; d = Math.Round(d - StepResolution, srNoD)) // Begin with max tool radius and decrease
                             {
+                                d = Math.Round(d, srNoD); // TODO: Round properly!!
                                 tc = p + n * d;
                                 bool touched = false;
                                 foreach(var oSeg in neighbourSegs)
@@ -248,7 +274,7 @@ namespace vcarve
                                     //if (oSeg == segment) continue; // Do not compare the segment with itself
                                     var cp = ClosestPoint(oSeg, tc);
                                     if (cp.point == p && (t == 0 || t ==1)) continue; // Do not take endpoints of neighbouring segments into account;
-                                    if (cp.dist <= d)
+                                    if (Math.Round(cp.dist,tpNoD) < d) // If the closest point on the other segment is within the tool radius (taking tool precision into account)
                                     {
                                         touched = true;
                                         break;
@@ -305,16 +331,17 @@ namespace vcarve
                 {
                     file.WriteLine("(new sub-path)");
                     file.WriteLine("G00 Z0.5");
-                    file.WriteLine($"G00 X{c.p.x} Y{-c.p.y}");
+                    file.WriteLine($"G00 X{RTP(c.p.x)} Y{RTP(-c.p.y)}");
                     pathidx = c.idx;
                 }
-                file.WriteLine($"G01 X{c.p.x} Y{-c.p.y} Z{-c.d*2}");
+                file.WriteLine($"G01 X{RTP(c.p.x)} Y{RTP(-c.p.y)} Z{RTP(-c.d*2)}");
             }
             file.WriteLine("G00 Z0.5");
             file.WriteLine("(end)");
             file.WriteLine("G28 G91 X0 Y0 Z0.5");
-            
         }
+        private double RTP(double value) => Math.Round(value, tpNoD); // Round to tool precision (0.001)
+
 
         #region Visualization
 
