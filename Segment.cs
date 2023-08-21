@@ -44,6 +44,13 @@ namespace vcarve
             return new Point(x / Length, y / Length);
         }
 
+        public double ToPolarAngle()
+        {
+            // Convert to polar angle
+            // https://stackoverflow.com/questions/2676719/calculating-the-angle-between-the-line-defined-by-two-points
+            return Math.Atan2(y, x);
+        }
+
         public readonly double Length => Math.Sqrt(x * x + y * y);
     }
 
@@ -76,24 +83,36 @@ namespace vcarve
     }
 
     /// <summary>
-    /// Special segment to deal with the spot where two lines meet
+    /// Special segment to deal with the case where two segments with different normals meet
     /// </summary>
-    class SpotSegment : Segment
+    class JoinSegment : Segment
     {
-        private Point normal;
+        public readonly Point StartNormal;
+        public readonly Point EndNormal;
 
-        public SpotSegment(Point p, Point normal)
+        public JoinSegment(Point p, Point startNormal, Point endNormal)
         {
             Start = p;
             End = p;
-            this.normal = normal;
+            StartNormal = startNormal;
+            EndNormal = endNormal;
             _bbox = new Rect(p, p);
         }
 
         private Rect _bbox;
         public override Rect BoundingBox() => _bbox;
 
-        public Point Normal() => normal;
+        public Point Normal(double t)
+        {
+            if (t <= 0) return StartNormal;
+            if (t >= 1) return EndNormal;
+            var s = StartNormal.ToPolarAngle();
+            var a = AngleBetween(StartNormal, EndNormal);
+            if (a > 0)
+                return (StartNormal + EndNormal).Normalize(); // TODO: Avoid ending up with this case - an inner angle does not need a join
+            return new Point(Math.Cos(s + a * t), Math.Sin(s + a * t));
+        }
+
         public (Point point, double distance) ClosestPoint(Point p) => (Start, (Start - p).Length);
     }
 
