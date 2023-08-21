@@ -10,6 +10,7 @@ namespace vcarve
     {
         private readonly string _path;
         private List<IEnumerable<Segment>> _svgpaths;
+        private MachineSettings machineSettings;
 
         // Determine clockwise or counter-clockwise: https://stackoverflow.com/a/1165943
 
@@ -17,9 +18,10 @@ namespace vcarve
         {
             _path = path;
             _svgpaths = new();
+            machineSettings = new();
 
-            tpNoD = NumberOfDecimals(ToolPrecision);
-            srNoD = NumberOfDecimals(StepResolution);
+            tpNoD = NumberOfDecimals(machineSettings.Precision);
+            rsrNoD = NumberOfDecimals(RadiusStepResolution);
             tsNoD = NumberOfDecimals(TraceStep);
 
             Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
@@ -59,11 +61,10 @@ namespace vcarve
             if (dp == -1) return 0;
             return s.Length - dp;
         }
-        private const double ToolPrecision = 0.01; // Tool movement precision
         private readonly int tpNoD; // Number of decimals for tool precision
 
-        private const double StepResolution = 0.01; // Tool depth step resolution
-        private readonly int srNoD; // Number of decimals for depth step resolution
+        private const double RadiusStepResolution = 0.01; // Tool depth step resolution when searching for intersections
+        private readonly int rsrNoD; // Number of decimals for depth step resolution
 
         private const double TraceStep = 0.1; // Tracing step resolution (in terms of t)
         private readonly int tsNoD; // Number of decimals for tracing step resolution
@@ -302,14 +303,15 @@ namespace vcarve
 
         private IEnumerable<ToolPathSegment> RenderToolPath(IEnumerable<Segment> segments)
         {
-            double toolRadius = 2;
             List<ToolPathSegment> result = new();
             int segidx = 1, count = segments.Count();
             int cnt = 0;
+            var tooldiam = machineSettings.Tool.Diameter;
             foreach (var segment in segments)
             {
                 cnt++;
-                var neighbourSegs = segments.Where(s => s != segment && segment.BoundingBox().DistanceTo(s.BoundingBox()) <= toolRadius * 2).ToList(); // Get all segments that are within the tool radius of the current segment
+
+                var neighbourSegs = segments.Where(s => s != segment && segment.BoundingBox().DistanceTo(s.BoundingBox()) <= tooldiam).ToList(); // Get all segments that are within the tool radius of the current segment
 
                 switch (segment)
                 {
@@ -325,17 +327,17 @@ namespace vcarve
                             Point n = qbez.Normal(t); // Normal at current t
                             Point tc = Point.Uninitalized; // Tool center point
                             double depth = 0;
-                            for (double d = toolRadius; d>0; d = Math.Round(d - StepResolution, srNoD)) // Begin with max tool radius and decrease
+                            for (double r = machineSettings.Tool.Radius; r>0; r = Math.Round(r - RadiusStepResolution, rsrNoD)) // Begin with max tool radius and decrease
                             {
-                                d = Math.Round(d, srNoD); // TODO: Round properly!!
-                                tc = p + n * d;
+                                r = Math.Round(r, rsrNoD); // TODO: Round properly!!
+                                tc = p + n * r;
                                 bool touched = false;
                                 foreach(var oSeg in neighbourSegs)
                                 {
                                     //if (oSeg == segment) continue; // Do not compare the segment with itself
                                     var cp = ClosestPoint(oSeg, tc);
                                     if (cp.point == p && (t == 0 || t ==1)) continue; // Do not take endpoints of neighbouring segments into account;
-                                    if (Math.Round(cp.dist,tpNoD) < d) // If the closest point on the other segment is within the tool radius (taking tool precision into account)
+                                    if (Math.Round(cp.dist,tpNoD) < r) // If the closest point on the other segment is within the tool radius (taking tool precision into account)
                                     {
                                         touched = true;
                                         break;
@@ -343,7 +345,7 @@ namespace vcarve
                                 }
                                 if (!touched)
                                 {
-                                    depth = d;
+                                    depth = machineSettings.Tool.DepthAtRadius(r);
                                     break; // We did not touch any other curves, this is a safe depth
                                 }
                             }
@@ -357,16 +359,16 @@ namespace vcarve
                             Point n = line.Normal(); // Line normal
                             Point tc = Point.Uninitalized; // Tool center point
                             double depth = 0;
-                            for (double d = toolRadius; d > 0; d = Math.Round(d - StepResolution, srNoD)) // Begin with max tool radius and decrease
+                            for (double r = machineSettings.Tool.Radius; r > 0; r = Math.Round(r - RadiusStepResolution, rsrNoD)) // Begin with max tool radius and decrease
                             {
-                                d = Math.Round(d, srNoD); // TODO: Round properly!!
-                                tc = p + n * d;
+                                r = Math.Round(r, rsrNoD); // TODO: Round properly!!
+                                tc = p + n * r;
                                 bool touched = false;
                                 foreach (var oSeg in neighbourSegs)
                                 {
                                     var cp = ClosestPoint(oSeg, tc);
                                     if (cp.point == p && (t == 0 || t == 1)) continue; // Do not take endpoints of neighbouring segments into account;
-                                    if (Math.Round(cp.dist, tpNoD) < d) // If the closest point on the other segment is within the tool radius (taking tool precision into account)
+                                    if (Math.Round(cp.dist, tpNoD) < r) // If the closest point on the other segment is within the tool radius (taking tool precision into account)
                                     {
                                         touched = true;
                                         break;
@@ -374,7 +376,7 @@ namespace vcarve
                                 }
                                 if (!touched)
                                 {
-                                    depth = d;
+                                    depth = machineSettings.Tool.DepthAtRadius(r);
                                     break; // We did not touch any other curves, this is a safe depth
                                 }
                             }
@@ -388,16 +390,16 @@ namespace vcarve
                             Point n = join.Normal(t);
                             Point tc = Point.Uninitalized; // Tool center point
                             double depth = 0;
-                            for (double d = toolRadius; d > 0; d = Math.Round(d - StepResolution, srNoD)) // Begin with max tool radius and decrease
+                            for (double r = machineSettings.Tool.Radius; r > 0; r = Math.Round(r - RadiusStepResolution, rsrNoD)) // Begin with max tool radius and decrease
                             {
-                                d = Math.Round(d, srNoD); // TODO: Round properly!!
-                                tc = p + n * d;
+                                r = Math.Round(r, rsrNoD); // TODO: Round properly!!
+                                tc = p + n * r;
                                 bool touched = false;
                                 foreach (var oSeg in neighbourSegs)
                                 {
                                     var cp = ClosestPoint(oSeg, tc);
                                     if (cp.point == p) continue; // Do not take endpoints of neighbouring segments into account;
-                                    if (Math.Round(cp.dist, tpNoD) < d) // If the closest point on the other segment is within the tool radius (taking tool precision into account)
+                                    if (Math.Round(cp.dist, tpNoD) < r) // If the closest point on the other segment is within the tool radius (taking tool precision into account)
                                     {
                                         touched = true;
                                         break;
@@ -405,7 +407,7 @@ namespace vcarve
                                 }
                                 if (!touched)
                                 {
-                                    depth = d;
+                                    depth = machineSettings.Tool.DepthAtRadius(r);
                                     break; // We did not touch any other curves, this is a safe depth
                                 }
                             }
@@ -438,13 +440,13 @@ namespace vcarve
             }
         }
 
-        private static string GCodePath(string path) => Path.Combine(Path.GetDirectoryName(path), $"{Path.GetFileNameWithoutExtension(path)}.gcode");
+        private string GCodePath(string path) => Path.Combine(Path.GetDirectoryName(path), $"{Path.GetFileNameWithoutExtension(path)}.gcode");
         private void RenderGCode(string path, IEnumerable<ToolPathSegment> toolpath)
         {
             using var file = new StreamWriter(path);
             file.WriteLine("%");
             file.WriteLine("(Generated by vcarve)");
-            file.WriteLine("G01 F100 (feed rate)");
+            file.WriteLine($"G01 F{machineSettings.FeedRate} (feed rate)");
             var pathidx = -1;
             foreach (var c in toolpath)
             {
@@ -455,7 +457,7 @@ namespace vcarve
                     file.WriteLine($"G00 X{RTP(c.p.x)} Y{RTP(-c.p.y)}");
                     pathidx = c.idx;
                 }
-                file.WriteLine($"G01 X{RTP(c.p.x)} Y{RTP(-c.p.y)} Z{RTP(-c.d*2)}");
+                file.WriteLine($"G01 X{RTP(c.p.x)} Y{RTP(-c.p.y)} Z{RTP(-c.d)}");
             }
             file.WriteLine("G00 Z0.5");
             file.WriteLine("(end)");
@@ -616,12 +618,12 @@ namespace vcarve
             return sb.ToString();
         }
 
-        private static string VisualizeToolPath(IEnumerable<ToolPathSegment> res)
+        private string VisualizeToolPath(IEnumerable<ToolPathSegment> res)
         {
             var sb = new StringBuilder();
             foreach (var c in res)
             {
-                sb.AppendSvgCircle(c.p, c.d, "teal");
+                sb.AppendSvgCircle(c.p, machineSettings.Tool.RadiusAtDepth(c.d), "teal");
             }
 
             return sb.ToString();
