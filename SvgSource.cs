@@ -228,7 +228,7 @@ namespace vcarve
                     case "Z": // Close path
                     case "z":
                         if (RTP((current-initial).Length) > 0) // Only close if there is a gap between the current and initial point
-                        segments.Add(new LineSegment(current, initial) { pathIdx = pathIdx });
+                            segments.Add(new LineSegment(current, initial) { pathIdx = pathIdx });
                         current = initial;
                         pathIdx++; // Next sub-path index
                         break;
@@ -237,6 +237,21 @@ namespace vcarve
 
                 }
             }
+
+            // If two consecutive segments are line segments, insert a spot segment between them having an intermediate normal
+            int sIdx = 0;
+            while (sIdx < segments.Count - 1)
+            {
+                if (segments[sIdx] is LineSegment ls1 && segments[sIdx + 1] is LineSegment ls2 && ls1.pathIdx == ls2.pathIdx && ls1.End == ls2.Start)
+                {
+                    var normal = ls1.Normal();
+                    var normal2 = ls2.Normal();
+                    var avgNormal = (normal + normal2).Normalize();
+                    segments.Insert(sIdx + 1, new SpotSegment(ls1.End, avgNormal) { pathIdx = ls1.pathIdx });
+                }
+                sIdx++;
+            }
+
             return segments;
         }
 
@@ -321,6 +336,36 @@ namespace vcarve
                             result.Add(new(tc, depth, line.pathIdx));
                         }
                         break;
+                    case SpotSegment spot:
+                        {
+                            Point p = spot.Start; // Point on line
+                            Point n = spot.Normal(); // Line normal
+                            Point tc = Point.Uninitalized; // Tool center point
+                            double depth = 0;
+                            for (double d = toolRadius; d > 0; d = Math.Round(d - StepResolution, srNoD)) // Begin with max tool radius and decrease
+                            {
+                                d = Math.Round(d, srNoD); // TODO: Round properly!!
+                                tc = p + n * d;
+                                bool touched = false;
+                                foreach (var oSeg in neighbourSegs)
+                                {
+                                    var cp = ClosestPoint(oSeg, tc);
+                                    if (cp.point == p) continue; // Do not take endpoints of neighbouring segments into account;
+                                    if (Math.Round(cp.dist, tpNoD) < d) // If the closest point on the other segment is within the tool radius (taking tool precision into account)
+                                    {
+                                        touched = true;
+                                        break;
+                                    }
+                                }
+                                if (!touched)
+                                {
+                                    depth = d;
+                                    break; // We did not touch any other curves, this is a safe depth
+                                }
+                            }
+                            result.Add(new(tc, depth, spot.pathIdx));
+                        }
+                        break;
                     default:
                         throw new NotImplementedException($"Segment type {segment.GetType().Name} is not supported");
                         break;
@@ -340,7 +385,8 @@ namespace vcarve
                     return qbseg.Bez.Project(tc);
                 case LineSegment line:
                     return line.ClosestPoint(tc);
-                //    break;
+                case SpotSegment spot:
+                    return spot.ClosestPoint(tc);
                 default:
                     throw new NotImplementedException($"Segment type {oseg.GetType().Name} is not supported");
             }
@@ -429,6 +475,9 @@ namespace vcarve
                         //    sb.AppendSvgDisc(line.Start + v * (t / 100d), 0.1, "red", 0.3);
                         //}
                         break;
+                    case SpotSegment spot:
+                        sb.AppendSvgDisc(spot.Start, 0.1, "red", 0.3);
+                        break;
                     default:
                         throw new NotImplementedException($"Currently there is no visual representation for {seg.GetType().Name}");
                         break;
@@ -466,6 +515,12 @@ namespace vcarve
                             }
                         }
                         break;
+                    case SpotSegment spot:
+                        {
+                            Point n = spot.Normal();
+                            sb.AppendSvgLine(spot.Start, spot.Start + n, 0.1, "lime");
+                        }
+                        break;
                     default:
                         throw new NotImplementedException($"Currently there is no visual representation for {seg.GetType().Name}");
                         break;
@@ -500,6 +555,8 @@ namespace vcarve
                         break;
                     case LineSegment line:
                         break; // Lines have no extra visual representation
+                    case SpotSegment spot:
+                        break; // Spots have no extra visual representation
                     default:
                         throw new NotImplementedException($"Currently there is no visual representation for {seg.GetType().Name}");
                         break;
@@ -535,19 +592,21 @@ namespace vcarve
                         break;
                     case QuadraticBezierSegment qbseg:
                         {
-                        var bbox = qbseg.Bez.BoundingBox();
-                        sb.AppendLine($"<rect x=\"{bbox.MinX}\" y=\"{bbox.MinY}\" width=\"{bbox.Width}\" height=\"{bbox.Height}\" fill=\"black\" stroke=\"red\" stroke-width=\"0.1\" opacity=\"0.2\" />");
+                            var bbox = qbseg.Bez.BoundingBox();
+                            sb.AppendLine($"<rect x=\"{bbox.MinX}\" y=\"{bbox.MinY}\" width=\"{bbox.Width}\" height=\"{bbox.Height}\" fill=\"black\" stroke=\"red\" stroke-width=\"0.1\" opacity=\"0.2\" />");
                         }
                         break;
                     case LineSegment line:
                         {
-                        if (line.Length < 0.001) 
-                            break;
+                            if (line.Length < 0.001) 
+                                break;
                         
                             var bbox = line.BoundingBox();
                             sb.AppendLine($"<rect x=\"{bbox.MinX}\" y=\"{bbox.MinY}\" width=\"{bbox.Width}\" height=\"{bbox.Height}\" fill=\"black\" stroke=\"red\" stroke-width=\"0.1\" opacity=\"0.2\" />");
                         }
                         break;
+                    case SpotSegment spot:
+                        break; // No bbox for spot
                     default:
                         throw new NotImplementedException($"Currently there is no visual representation for {seg.GetType().Name}");
                         break;

@@ -16,6 +16,16 @@ namespace vcarve
             return a.x * b.x + a.y * b.y;
         }
 
+        public static double AngleBetween(Point a, Point b)
+        {
+            // Given that a and b are vectors, calculate the counter-clockwise angle between them
+            // https://stackoverflow.com/questions/14066933/direct-way-of-computing-clockwise-angle-between-2-vectors
+            var dot = Dot(a, b);
+            var det = a.x * b.y - a.y * b.x; // Determinant
+            var angle = Math.Atan2(det, dot); // atan2(y, x) or atan2(sin, cos)
+            return angle;
+        }
+
         public abstract Rect BoundingBox();
     }
 
@@ -63,6 +73,28 @@ namespace vcarve
                 Math.Abs(MidY - other.MidY) - (Height + other.Height) / 2
                 );
         }
+    }
+
+    /// <summary>
+    /// Special segment to deal with the spot where two lines meet
+    /// </summary>
+    class SpotSegment : Segment
+    {
+        private Point normal;
+
+        public SpotSegment(Point p, Point normal)
+        {
+            Start = p;
+            End = p;
+            this.normal = normal;
+            _bbox = new Rect(p, p);
+        }
+
+        private Rect _bbox;
+        public override Rect BoundingBox() => _bbox;
+
+        public Point Normal() => normal;
+        public (Point point, double distance) ClosestPoint(Point p) => (Start, (Start - p).Length);
     }
 
     class LineSegment : Segment
