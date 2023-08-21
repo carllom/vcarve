@@ -42,7 +42,7 @@ namespace vcarve
         public readonly double Width => Math.Abs(a.x - b.x);
         public readonly double Height => Math.Abs(a.y - b.y);
         public readonly double MidX => (a.x + b.x) / 2;
-        public readonly double MidY => (a.y - b.y) / 2;
+        public readonly double MidY => (a.y + b.y) / 2;
         
         public readonly double MinX => Math.Min(a.x, b.x);
         public readonly double MinY => Math.Min(a.y, b.y);
@@ -73,29 +73,15 @@ namespace vcarve
             End = end;
         }
 
-        /// <summary>
-        /// TODO: validate - copilot generated code
-        /// </summary>
-        /// <param name="p"></param>
-        /// <returns></returns>
-        public Point ShortestDistanceTo(Point p)
-        {
-            var v = new Point(End.x - Start.x, End.y - Start.y);
-            var w = new Point(p.x - Start.x, p.y - Start.y);
-            var c1 = Dot(w, v);
-            if (c1 <= 0)
-                return Start;
-            var c2 = Dot(v, v);
-            if (c2 <= c1)
-                return End;
-            var b = c1 / c2;
-            var pb = new Point(Start.x + b * v.x, Start.y + b * v.y);
-            return pb;
-        }
-
         public double Length => Math.Sqrt((End.x - Start.x)* (End.x - Start.x) + (End.y - Start.y) * (End.y - Start.y));
 
         public Point ToVector => new Point(End.x - Start.x, End.y - Start.y);
+
+        public Point PointAt(double t)
+        {
+            // return the point at t along the line segment
+            return new Point(Start.x + t * (End.x - Start.x), Start.y + t * (End.y - Start.y));
+        }
 
         public override string ToString()
         {
@@ -104,6 +90,40 @@ namespace vcarve
 
         private Rect? _bbox;
         public override Rect BoundingBox() => _bbox ??= new Rect(new Point(Math.Min(Start.x, End.x), Math.Min(Start.y, End.y)), new Point(Math.Max(Start.x, End.x), Math.Max(Start.y, End.y)));
+
+        private Point? _normal;
+        public Point Normal()
+        {
+            if (!_normal.HasValue)
+            {
+                // Given that the line segment is a vector from start to end, calculate the normalized normal
+                // by rotating 90 degrees counter clockwise
+                var v = ToVector;
+                _normal = new Point(-v.y / Length, v.x / Length);
+            }
+            return _normal.Value;
+        }
+
+        /// <summary>
+        /// Copilot generated code
+        /// </summary>
+        /// <param name="p"></param>
+        /// <returns></returns>
+        public (Point point, double distance) ClosestPoint(Point p)
+        {
+            // Calculate the closest point on the line segment to the given point and the distance between them
+            var v = ToVector;
+            var w = new Point(p.x - Start.x, p.y - Start.y);
+            var c1 = Dot(w, v);
+            if (c1 <= 0)
+                return (Start, Math.Sqrt(w.x * w.x + w.y * w.y));
+            var c2 = Dot(v, v);
+            if (c2 <= c1)
+                return (End, Math.Sqrt((p.x - End.x) * (p.x - End.x) + (p.y - End.y) * (p.y - End.y)));
+            var b = c1 / c2;
+            var pb = new Point(Start.x + b * v.x, Start.y + b * v.y);
+            return (pb, Math.Sqrt((p.x - pb.x) * (p.x - pb.x) + (p.y - pb.y) * (p.y - pb.y)));
+        }
     }
 
     abstract class BezierSegment : Segment

@@ -227,6 +227,7 @@ namespace vcarve
                         break;
                     case "Z": // Close path
                     case "z":
+                        if (RTP((current-initial).Length) > 0) // Only close if there is a gap between the current and initial point
                         segments.Add(new LineSegment(current, initial) { pathIdx = pathIdx });
                         current = initial;
                         pathIdx++; // Next sub-path index
@@ -290,7 +291,35 @@ namespace vcarve
                         }
                         break;
                     case LineSegment line:
-                        // Skip silently for now
+                        for (double t = 0; t <= 1; t = Math.Round(t + TraceStep, tsNoD))
+                        {
+                            Point p = line.PointAt(t); // Point on line
+                            Point n = line.Normal(); // Line normal
+                            Point tc = Point.Uninitalized; // Tool center point
+                            double depth = 0;
+                            for (double d = toolRadius; d > 0; d = Math.Round(d - StepResolution, srNoD)) // Begin with max tool radius and decrease
+                            {
+                                d = Math.Round(d, srNoD); // TODO: Round properly!!
+                                tc = p + n * d;
+                                bool touched = false;
+                                foreach (var oSeg in neighbourSegs)
+                                {
+                                    var cp = ClosestPoint(oSeg, tc);
+                                    if (cp.point == p && (t == 0 || t == 1)) continue; // Do not take endpoints of neighbouring segments into account;
+                                    if (Math.Round(cp.dist, tpNoD) < d) // If the closest point on the other segment is within the tool radius (taking tool precision into account)
+                                    {
+                                        touched = true;
+                                        break;
+                                    }
+                                }
+                                if (!touched)
+                                {
+                                    depth = d;
+                                    break; // We did not touch any other curves, this is a safe depth
+                                }
+                            }
+                            result.Add(new(tc, depth, line.pathIdx));
+                        }
                         break;
                     default:
                         throw new NotImplementedException($"Segment type {segment.GetType().Name} is not supported");
@@ -301,7 +330,7 @@ namespace vcarve
             return result;
         }
 
-        private (TPoint point, double dist) ClosestPoint(Segment oseg, Point tc)
+        private (Point point, double dist) ClosestPoint(Segment oseg, Point tc)
         {
             switch (oseg)
             {
@@ -310,7 +339,7 @@ namespace vcarve
                 case QuadraticBezierSegment qbseg:
                     return qbseg.Bez.Project(tc);
                 case LineSegment line:
-                    return (new TPoint(Point.Uninitalized, 0), double.MaxValue);
+                    return line.ClosestPoint(tc);
                 //    break;
                 default:
                     throw new NotImplementedException($"Segment type {oseg.GetType().Name} is not supported");
@@ -428,6 +457,14 @@ namespace vcarve
                         }
                         break;
                     case LineSegment line:
+                        {
+                            Point n = line.Normal();
+                            for (var t = 0d; t <= 1; t += .1)
+                            {
+                                Point p = line.PointAt(t);
+                                sb.AppendSvgLine(p, p + n, 0.1, "lime");
+                            }
+                        }
                         break;
                     default:
                         throw new NotImplementedException($"Currently there is no visual representation for {seg.GetType().Name}");
@@ -462,7 +499,7 @@ namespace vcarve
                         sb.AppendSvgCircle(qbseg.Control, 0.3, "yellow");
                         break;
                     case LineSegment line:
-                        break;
+                        break; // Lines have no extra visual representation
                     default:
                         throw new NotImplementedException($"Currently there is no visual representation for {seg.GetType().Name}");
                         break;
@@ -497,13 +534,19 @@ namespace vcarve
                     case CubicBezierSegment cbseg:
                         break;
                     case QuadraticBezierSegment qbseg:
+                        {
                         var bbox = qbseg.Bez.BoundingBox();
                         sb.AppendLine($"<rect x=\"{bbox.MinX}\" y=\"{bbox.MinY}\" width=\"{bbox.Width}\" height=\"{bbox.Height}\" fill=\"black\" stroke=\"red\" stroke-width=\"0.1\" opacity=\"0.2\" />");
+                        }
                         break;
                     case LineSegment line:
+                        {
                         if (line.Length < 0.001) 
                             break;
-                        //sb.AppendLine($"<rect x=\"{bbox.a.x}\" y=\"{bbox.a.y}\" width=\"{bbox.b.x - bbox.a.x}\" height=\"{bbox.b.y - bbox.a.y}\" fill=\"none\" stroke=\"red\" stroke-width=\"0.1\" />");
+                        
+                            var bbox = line.BoundingBox();
+                            sb.AppendLine($"<rect x=\"{bbox.MinX}\" y=\"{bbox.MinY}\" width=\"{bbox.Width}\" height=\"{bbox.Height}\" fill=\"black\" stroke=\"red\" stroke-width=\"0.1\" opacity=\"0.2\" />");
+                        }
                         break;
                     default:
                         throw new NotImplementedException($"Currently there is no visual representation for {seg.GetType().Name}");
