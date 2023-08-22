@@ -4,13 +4,37 @@
       "commandName": "WSL2",
       "distributionName": ""
     },
-    "vcarve tnr-a": {
+    "Bradley Hand ITC": {
+      "commandName": "Project",
+      "commandLineArgs": "\"..\\..\\..\\samples\\bhitc-path.svg\""
+    },
+    "Bauhaus 93": {
+      "commandName": "Project",
+      "commandLineArgs": "\"..\\..\\..\\samples\\bh93-path.svg\""
+    },
+    "Times New Roman A": {
       "commandName": "Project",
       "commandLineArgs": "\"..\\..\\..\\samples\\tnr-a-path.svg\""
     },
-    "vcarve esitc-t": {
+    "Edwardian Script ITC T": {
       "commandName": "Project",
       "commandLineArgs": "\"..\\..\\..\\samples\\esitc-t-path.svg\""
+    },
+    "Edwardian Script ITC": {
+      "commandName": "Project",
+      "commandLineArgs": "\"..\\..\\..\\samples\\esitc-path.svg\""
+    },
+    "Segoe Print": {
+      "commandName": "Project",
+      "commandLineArgs": "\"..\\..\\..\\samples\\sp-path.svg\""
+    },
+    "Times New Roman": {
+      "commandName": "Project",
+      "commandLineArgs": "\"..\\..\\..\\samples\\tnr-path.svg\""
+    },
+    "Proverb": {
+      "commandName": "Project",
+      "commandLineArgs": "\"..\\..\\..\\samples\\proverb3.svg\""
     }
   }
 }

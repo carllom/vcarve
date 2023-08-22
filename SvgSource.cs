@@ -10,6 +10,7 @@ namespace vcarve
     {
         private readonly string _path;
         private List<IEnumerable<Segment>> _svgpaths;
+        private List<IEnumerable<ToolPathSegment>> _toolpaths;
         private MachineSettings machineSettings;
 
         // Determine clockwise or counter-clockwise: https://stackoverflow.com/a/1165943
@@ -18,6 +19,7 @@ namespace vcarve
         {
             _path = path;
             _svgpaths = new();
+            _toolpaths = new();
             machineSettings = new();
 
             tpNoD = NumberOfDecimals(machineSettings.Precision);
@@ -36,21 +38,31 @@ namespace vcarve
                     {
                         var d = xmlReader.GetAttribute("d");
                         var s = ParsePath(d);
-                        if (s?.Count() > 0) _svgpaths.Add(s);
+                        if (s?.Count() > 0)
+                        {
+                            _svgpaths.Add(s);
+                            _toolpaths.Add(RenderToolPath(s));
+                        }
 
-                        var res = RenderToolPath(s);
-
-                        File.Copy(path, TargetPath(path), true);
-                        AppendVisualization(TargetPath(path), VisualizeBBox(s));
-                        AppendVisualization(TargetPath(path), VisualizeContour(s));
-                        AppendVisualization(TargetPath(path), VisualizeSegments(s));
-                        AppendVisualization(TargetPath(path), VisualizeNormals(s));
-                        AppendVisualization(TargetPath(path), VisualizeToolPath(res));
-
-                        RenderGCode(GCodePath(path), res);
                     }
                 }
             }
+
+            File.Copy(path, TargetPath(path), true);
+            foreach (var s in _svgpaths)
+            {
+                AppendVisualization(TargetPath(path), VisualizeBBox(s));
+                AppendVisualization(TargetPath(path), VisualizeContour(s));
+                AppendVisualization(TargetPath(path), VisualizeSegments(s));
+                AppendVisualization(TargetPath(path), VisualizeNormals(s));
+            }
+
+            foreach (var tp in _toolpaths)
+            {
+                AppendVisualization(TargetPath(path), VisualizeToolPath(tp));
+            }
+
+            RenderGCode(GCodePath(path), _toolpaths);
         }
 
         // Precision configuration
@@ -316,7 +328,38 @@ namespace vcarve
                 switch (segment)
                 {
                     case CubicBezierSegment cbSeg:
-                        // Skip silently for now
+                        var cbez = cbSeg.Bez;
+
+                        for (double t = 0; t <= 1; t = Math.Round(t + TraceStep, tsNoD))
+                        {
+                            Point p = cbez.Compute(t); // Point on traced curve
+                            Point n = cbez.Normal(t); // Normal at current t
+                            Point tc = Point.Uninitalized; // Tool center point
+                            double depth = 0;
+                            for (double r = machineSettings.Tool.Radius; r > 0; r = Math.Round(r - RadiusStepResolution, rsrNoD)) // Begin with max tool radius and decrease
+                            {
+                                r = Math.Round(r, rsrNoD); // TODO: Round properly!!
+                                tc = p + n * r;
+                                bool touched = false;
+                                foreach (var oSeg in neighbourSegs)
+                                {
+                                    //if (oSeg == segment) continue; // Do not compare the segment with itself
+                                    var cp = ClosestPoint(oSeg, tc);
+                                    if (cp.point == p && (t == 0 || t == 1)) continue; // Do not take endpoints of neighbouring segments into account;
+                                    if (Math.Round(cp.dist, tpNoD) < r) // If the closest point on the other segment is within the tool radius (taking tool precision into account)
+                                    {
+                                        touched = true;
+                                        break;
+                                    }
+                                }
+                                if (!touched)
+                                {
+                                    depth = machineSettings.Tool.DepthAtRadius(r);
+                                    break; // We did not touch any other curves, this is a safe depth
+                                }
+                            }
+                            result.Add(new(tc, depth, cbSeg.pathIdx));
+                        }
                         break;
                     case QuadraticBezierSegment qbSeg:
                         var qbez = qbSeg.Bez;
@@ -441,12 +484,20 @@ namespace vcarve
         }
 
         private string GCodePath(string path) => Path.Combine(Path.GetDirectoryName(path), $"{Path.GetFileNameWithoutExtension(path)}.gcode");
-        private void RenderGCode(string path, IEnumerable<ToolPathSegment> toolpath)
+        private void RenderGCode(string path, IEnumerable<IEnumerable<ToolPathSegment>> toolpaths)
         {
             using var file = new StreamWriter(path);
             file.WriteLine("%");
             file.WriteLine("(Generated by vcarve)");
             file.WriteLine($"G01 F{machineSettings.FeedRate} (feed rate)");
+            foreach (var toolpath in toolpaths) RenderToolPath(file, toolpath);
+            file.WriteLine("G00 Z0.5");
+            file.WriteLine("(end)");
+            file.WriteLine("G28 G91 X0 Y0 Z0.5");
+        }
+
+        private void RenderToolPath(StreamWriter file, IEnumerable<ToolPathSegment> toolpath)
+        {
             var pathidx = -1;
             foreach (var c in toolpath)
             {
@@ -459,10 +510,8 @@ namespace vcarve
                 }
                 file.WriteLine($"G01 X{RTP(c.p.x)} Y{RTP(-c.p.y)} Z{RTP(-c.d)}");
             }
-            file.WriteLine("G00 Z0.5");
-            file.WriteLine("(end)");
-            file.WriteLine("G28 G91 X0 Y0 Z0.5");
         }
+
         private double RTP(double value) => Math.Round(value, tpNoD); // Round to tool precision (0.001)
 
 
@@ -542,6 +591,14 @@ namespace vcarve
                 switch (seg)
                 {
                     case CubicBezierSegment cbseg:
+                        var cbez = cbseg.Bez;
+                        for (double t = 0; t <= 1; t = Math.Round(t + TraceStep, tsNoD))
+                        {
+                            Point p = cbez.Compute(t);
+                            Point n = cbez.Normal(t);
+                            n = n.Normalize();
+                            sb.AppendSvgLine(p, p + n, 0.1, "lime");
+                        }
                         break;
                     case QuadraticBezierSegment qbseg:
                         var qbez = qbseg.Bez;
@@ -638,6 +695,10 @@ namespace vcarve
                 switch (seg)
                 {
                     case CubicBezierSegment cbseg:
+                        {
+                            var bbox = cbseg.Bez.BoundingBox();
+                            sb.AppendLine($"<rect x=\"{bbox.MinX}\" y=\"{bbox.MinY}\" width=\"{bbox.Width}\" height=\"{bbox.Height}\" fill=\"black\" stroke=\"red\" stroke-width=\"0.1\" opacity=\"0.2\" />");
+                        }
                         break;
                     case QuadraticBezierSegment qbseg:
                         {

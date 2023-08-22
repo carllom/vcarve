@@ -45,7 +45,7 @@ namespace vcarve.GCode
             Origin = new Point(0, 0);
             FeedRate = 1000;
             Precision = 0.01;
-            Tool = new ConicalTool(45, 5);
+            Tool = new ConicalTool(45, 2);
         }
     }
 }

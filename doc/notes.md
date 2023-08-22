@@ -2,13 +2,16 @@
 
 ## Bugs
 
-### Tool shortcuts on convex corners between two lines
+### (DONE) Tool shortcuts on convex corners between two lines
 
 Added spot segment with intermediate normal to try to prevent this. Still generates shortcut.
 I think tool must take a circular path between the end of the first(a) line and the start of the second(b).
 Trace the tool by stepping the normal from a.normal to b.normal using the spot point.
 Spot segment needs two normals, one from a, one from b.
 
+### Bauhaus 93 sample 'B' is inside out
+
+Is it rendered clockwise? Can we see some other indication that this letter is unique. Other letters in sample are OK.
 
 ## Improvements
 
