@@ -49,18 +49,20 @@ namespace vcarve
             }
 
             File.Copy(path, TargetPath(path), true);
+            var contents = new List<string>();
             foreach (var s in _svgpaths)
             {
-                AppendVisualization(TargetPath(path), VisualizeBBox(s));
-                AppendVisualization(TargetPath(path), VisualizeContour(s));
-                AppendVisualization(TargetPath(path), VisualizeSegments(s));
-                AppendVisualization(TargetPath(path), VisualizeNormals(s));
+                contents.Add(VisualizeBBox(s));
+                contents.Add(VisualizeContour(s));
+                contents.Add(VisualizeSegments(s));
+                contents.Add(VisualizeNormals(s));
             }
 
             foreach (var tp in _toolpaths)
             {
-                AppendVisualization(TargetPath(path), VisualizeToolPath(tp));
+                contents.Add(VisualizeToolPath(tp));
             }
+            AppendVisualizations(TargetPath(path), contents);
 
             RenderGCode(GCodePath(path), _toolpaths);
         }
@@ -464,7 +466,7 @@ namespace vcarve
 
         private static string TargetPath(string path) => Path.Combine(Path.GetDirectoryName(path), $"{Path.GetFileNameWithoutExtension(path)}-annotated{Path.GetExtension(path)}");
 
-        private static void AppendVisualization(string path, string content)
+        private static void AppendVisualizations(string path, IEnumerable<string> visualizations)
         {
             using (var wrt = new StreamWriter(path + ".tmp"))
             {
@@ -477,9 +479,12 @@ namespace vcarve
                         wrt.WriteLine(l);
                     }
                 }
-                wrt.WriteLine("<g>");
-                wrt.Write(content);
-                wrt.WriteLine("</g>");
+                foreach (var content in visualizations)
+                {
+                    wrt.WriteLine("<g>");
+                    wrt.Write(content);
+                    wrt.WriteLine("</g>");
+                }
                 wrt.WriteLine("</svg>");
             }
             File.Move(path + ".tmp", path, true);
