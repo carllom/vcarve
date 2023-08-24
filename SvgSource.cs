@@ -334,31 +334,8 @@ namespace vcarve
                         {
                             Point p = cbez.Compute(t); // Point on traced curve
                             Point n = cbez.Normal(t); // Normal at current t
-                            Point tc = Point.Uninitalized; // Tool center point
-                            double depth = 0;
-                            for (double r = machineSettings.Tool.Radius; r > 0; r = Math.Round(r - RadiusStepResolution, rsrNoD)) // Begin with max tool radius and decrease
-                            {
-                                r = Math.Round(r, rsrNoD); // TODO: Round properly!!
-                                tc = p + n * r;
-                                bool touched = false;
-                                foreach (var oSeg in neighbourSegs)
-                                {
-                                    //if (oSeg == segment) continue; // Do not compare the segment with itself
-                                    var cp = ClosestPoint(oSeg, tc);
-                                    if (cp.point == p && (t == 0 || t == 1)) continue; // Do not take endpoints of neighbouring segments into account;
-                                    if (Math.Round(cp.dist, tpNoD) < r) // If the closest point on the other segment is within the tool radius (taking tool precision into account)
-                                    {
-                                        touched = true;
-                                        break;
-                                    }
-                                }
-                                if (!touched)
-                                {
-                                    depth = machineSettings.Tool.DepthAtRadius(r);
-                                    break; // We did not touch any other curves, this is a safe depth
-                                }
-                            }
-                            result.Add(new(tc, depth, cbSeg.pathIdx));
+                            var opt = FindOptimalDepth(neighbourSegs, t, p, n);
+                            result.Add(new(opt.toolCenter, opt.depth, cbSeg.pathIdx));
                         }
                         break;
                     case QuadraticBezierSegment qbSeg:
@@ -368,31 +345,8 @@ namespace vcarve
                         {
                             Point p = qbez.Compute(t); // Point on traced curve
                             Point n = qbez.Normal(t); // Normal at current t
-                            Point tc = Point.Uninitalized; // Tool center point
-                            double depth = 0;
-                            for (double r = machineSettings.Tool.Radius; r>0; r = Math.Round(r - RadiusStepResolution, rsrNoD)) // Begin with max tool radius and decrease
-                            {
-                                r = Math.Round(r, rsrNoD); // TODO: Round properly!!
-                                tc = p + n * r;
-                                bool touched = false;
-                                foreach(var oSeg in neighbourSegs)
-                                {
-                                    //if (oSeg == segment) continue; // Do not compare the segment with itself
-                                    var cp = ClosestPoint(oSeg, tc);
-                                    if (cp.point == p && (t == 0 || t ==1)) continue; // Do not take endpoints of neighbouring segments into account;
-                                    if (Math.Round(cp.dist,tpNoD) < r) // If the closest point on the other segment is within the tool radius (taking tool precision into account)
-                                    {
-                                        touched = true;
-                                        break;
-                                    }
-                                }
-                                if (!touched)
-                                {
-                                    depth = machineSettings.Tool.DepthAtRadius(r);
-                                    break; // We did not touch any other curves, this is a safe depth
-                                }
-                            }
-                            result.Add(new(tc, depth, qbSeg.pathIdx));
+                            var opt = FindOptimalDepth(neighbourSegs, t, p, n);
+                            result.Add(new(opt.toolCenter, opt.depth, qbSeg.pathIdx));
                         }
                         break;
                     case LineSegment line:
@@ -400,30 +354,8 @@ namespace vcarve
                         {
                             Point p = line.PointAt(t); // Point on line
                             Point n = line.Normal(); // Line normal
-                            Point tc = Point.Uninitalized; // Tool center point
-                            double depth = 0;
-                            for (double r = machineSettings.Tool.Radius; r > 0; r = Math.Round(r - RadiusStepResolution, rsrNoD)) // Begin with max tool radius and decrease
-                            {
-                                r = Math.Round(r, rsrNoD); // TODO: Round properly!!
-                                tc = p + n * r;
-                                bool touched = false;
-                                foreach (var oSeg in neighbourSegs)
-                                {
-                                    var cp = ClosestPoint(oSeg, tc);
-                                    if (cp.point == p && (t == 0 || t == 1)) continue; // Do not take endpoints of neighbouring segments into account;
-                                    if (Math.Round(cp.dist, tpNoD) < r) // If the closest point on the other segment is within the tool radius (taking tool precision into account)
-                                    {
-                                        touched = true;
-                                        break;
-                                    }
-                                }
-                                if (!touched)
-                                {
-                                    depth = machineSettings.Tool.DepthAtRadius(r);
-                                    break; // We did not touch any other curves, this is a safe depth
-                                }
-                            }
-                            result.Add(new(tc, depth, line.pathIdx));
+                            var opt = FindOptimalDepth(neighbourSegs, t, p, n);
+                            result.Add(new(opt.toolCenter, opt.depth, line.pathIdx));
                         }
                         break;
                     case JoinSegment join:
@@ -431,30 +363,8 @@ namespace vcarve
                         {
                             Point p = join.Start; // Join point
                             Point n = join.Normal(t);
-                            Point tc = Point.Uninitalized; // Tool center point
-                            double depth = 0;
-                            for (double r = machineSettings.Tool.Radius; r > 0; r = Math.Round(r - RadiusStepResolution, rsrNoD)) // Begin with max tool radius and decrease
-                            {
-                                r = Math.Round(r, rsrNoD); // TODO: Round properly!!
-                                tc = p + n * r;
-                                bool touched = false;
-                                foreach (var oSeg in neighbourSegs)
-                                {
-                                    var cp = ClosestPoint(oSeg, tc);
-                                    if (cp.point == p) continue; // Do not take endpoints of neighbouring segments into account;
-                                    if (Math.Round(cp.dist, tpNoD) < r) // If the closest point on the other segment is within the tool radius (taking tool precision into account)
-                                    {
-                                        touched = true;
-                                        break;
-                                    }
-                                }
-                                if (!touched)
-                                {
-                                    depth = machineSettings.Tool.DepthAtRadius(r);
-                                    break; // We did not touch any other curves, this is a safe depth
-                                }
-                            }
-                            result.Add(new(tc, depth, join.pathIdx));
+                            var opt = FindOptimalDepth(neighbourSegs, t, p, n);
+                            result.Add(new(opt.toolCenter, opt.depth, join.pathIdx));
                         }
                         break;
                     default:
@@ -464,6 +374,41 @@ namespace vcarve
                 Console.WriteLine($"{segidx++}/{count} segments done");
             }
             return result;
+        }
+
+        private const double BinarySearchDamping = 0.8;
+        private (Point toolCenter, double depth) FindOptimalDepth(List<Segment> neighbourSegs, double t, Point source, Point normal)
+        {
+            Point tc = Point.Uninitalized;
+            double depth = 0;
+
+            double r = 0;
+            double rdelt = machineSettings.Tool.Radius;
+            while (Math.Abs(rdelt) >= 0.01)
+            {
+                r += rdelt;
+                rdelt = double.MaxValue;
+
+                tc = source + normal * r;
+                // binary search the closest point for all neighboring segments for the one with distance closest to r
+                foreach (var oSeg in neighbourSegs)
+                {
+                    var cp = ClosestPoint(oSeg, tc);
+                    if (cp.point == source && (t == 0 || t == 1)) continue; // Do not take endpoints of neighbouring segments into account;
+                    var cd = (cp.dist - r) * BinarySearchDamping;
+
+
+                    if (cd > 0 && cd < rdelt) // if rdelt is positive and cp.dist is positive but smaller than rdelt, set rdelt to cp.dist
+                        rdelt = cd;
+                    else if (rdelt < 0 && cd < rdelt) // if rdelt is negative and cp.dist is negative but larger than rdelt, set rdelt to cp.dist
+                        rdelt = cd;
+                    else if (rdelt > 0 && cd < 0) // if rdelt is positive and cp.dist is negative, set rdelt to cp.dist
+                        rdelt = cd;
+                }
+                if (r >= machineSettings.Tool.Radius && rdelt > 0) break;
+            }
+            depth = machineSettings.Tool.DepthAtRadius(r);
+            return (tc, depth);
         }
 
         private (Point point, double dist) ClosestPoint(Segment oseg, Point tc)
