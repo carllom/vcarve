@@ -23,7 +23,6 @@ namespace vcarve
             machineSettings = new();
 
             tpNoD = NumberOfDecimals(machineSettings.Precision);
-            rsrNoD = NumberOfDecimals(RadiusStepResolution);
             tsNoD = NumberOfDecimals(TraceStep);
 
             Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
@@ -77,8 +76,7 @@ namespace vcarve
         }
         private readonly int tpNoD; // Number of decimals for tool precision
 
-        private const double RadiusStepResolution = 0.01; // Tool depth step resolution when searching for intersections
-        private readonly int rsrNoD; // Number of decimals for depth step resolution
+        private const double RadiusStepResolution = 0.005; // Tool depth step resolution when searching for intersections
 
         private const double TraceStep = 0.1; // Tracing step resolution (in terms of t)
         private readonly int tsNoD; // Number of decimals for tracing step resolution
@@ -378,38 +376,38 @@ namespace vcarve
             return result;
         }
 
-        private const double BinarySearchDamping = 0.8;
         private (Point toolCenter, double depth) FindOptimalDepth(List<Segment> neighbourSegs, double t, Point source, Point normal)
         {
             Point tc = Point.Uninitalized;
             double depth = 0;
 
-            double r = 0;
+            double radius = 0;
             double rdelt = machineSettings.Tool.Radius;
+            double dir = 1;
             while (Math.Abs(rdelt) >= 0.01)
             {
-                r += rdelt;
-                rdelt = double.MaxValue;
+                radius += rdelt * dir;
+                dir = 1;
+                rdelt /= 2;
+                if (rdelt < RadiusStepResolution) break; // Break if rdelt is smaller than the precision
 
-                tc = source + normal * r;
+                tc = source + normal * radius;
+                
                 // binary search the closest point for all neighboring segments for the one with distance closest to r
                 foreach (var oSeg in neighbourSegs)
                 {
                     var cp = ClosestPoint(oSeg, tc);
                     if (cp.point == source && (t == 0 || t == 1)) continue; // Do not take endpoints of neighbouring segments into account;
-                    var cd = (cp.dist - r) * BinarySearchDamping;
-
-
-                    if (cd > 0 && cd < rdelt) // if rdelt is positive and cp.dist is positive but smaller than rdelt, set rdelt to cp.dist
-                        rdelt = cd;
-                    else if (rdelt < 0 && cd < rdelt) // if rdelt is negative and cp.dist is negative but larger than rdelt, set rdelt to cp.dist
-                        rdelt = cd;
-                    else if (rdelt > 0 && cd < 0) // if rdelt is positive and cp.dist is negative, set rdelt to cp.dist
-                        rdelt = cd;
+                    
+                    if (cp.dist - radius < -machineSettings.Precision) // Tool cuts into neighbouring segment
+                    {
+                        dir = -1;
+                        break;
+                    }
                 }
-                if (r >= machineSettings.Tool.Radius && rdelt > 0) break;
+                if (radius >= machineSettings.Tool.Radius && dir > 0) break; // Reached maximum depth
             }
-            depth = machineSettings.Tool.DepthAtRadius(r);
+            depth = machineSettings.Tool.DepthAtRadius(radius);
             return (tc, depth);
         }
 
