@@ -35,6 +35,18 @@
     "Proverb": {
       "commandName": "Project",
       "commandLineArgs": "\"..\\..\\..\\samples\\proverb3.svg\""
+    },
+    "Fortuna Gothic Flourish": {
+      "commandName": "Project",
+      "commandLineArgs": "\"..\\..\\..\\samples\\fgf-path.svg\""
+    },
+    "Gotika Ornament": {
+      "commandName": "Project",
+      "commandLineArgs": "\"..\\..\\..\\samples\\go-path.svg\""
+    },
+    "Wood cut": {
+      "commandName": "Project",
+      "commandLineArgs": "\"..\\..\\..\\samples\\woodcut-path.svg\""
     }
   }
 }
