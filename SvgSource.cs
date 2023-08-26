@@ -250,8 +250,9 @@ namespace vcarve
                             var yend = Number(tokens[i++]);
                             var control = new Point(cx, cy);
                             var end = new Point(xend, yend);
-                            var qbs = new QuadraticBezierSegment(current, control, end) { pathIdx = pathIdx };
-                            if (initialNormal == Point.Uninitalized) initialNormal = qbs.Bez.Normal(0);
+                            Segment qbs = (control == current || control == end) ?
+                                new LineSegment(current, end) { pathIdx = pathIdx } : // Quadratic curve with control point in either end point is a line
+                                new QuadraticBezierSegment(current, control, end) { pathIdx = pathIdx };
                             if (initialNormal == Point.Uninitalized) initialNormal = qbs.NormalAt(0);
                             segments.Add(qbs);
                             current = end;
@@ -267,8 +268,9 @@ namespace vcarve
                             var yend = current.y + Number(tokens[i++]);
                             var control = new Point(cx, cy);
                             var end = new Point(xend, yend);
-                            var qbs = new QuadraticBezierSegment(current, control, end) { pathIdx = pathIdx };
-                            if (initialNormal == Point.Uninitalized) initialNormal = qbs.Bez.Normal(0);
+                            Segment qbs = (control == current || control == end) ? 
+                                new LineSegment(current, end) { pathIdx = pathIdx }: // Quadratic curve with control point in either end point is a line
+                                new QuadraticBezierSegment(current, control, end) { pathIdx = pathIdx };
                             if (initialNormal == Point.Uninitalized) initialNormal = qbs.NormalAt(0);
                             segments.Add(qbs);
                             current = end;
