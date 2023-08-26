@@ -5,6 +5,7 @@ namespace vcarve
     public abstract class Segment
     {
         public int pathIdx { get; set; }
+        public int winding { get; set; } = 1; // 1 = clockwise, -1 = counter-clockwise. Default to clockwise
         public Point Start {get; protected set;}
         public Point End {get; protected set;}
 
@@ -27,6 +28,11 @@ namespace vcarve
         }
 
         public abstract Rect BoundingBox();
+
+        public abstract Point NormalAt(double t);
+        public abstract Point PointAt(double t);
+
+        public abstract (Point point, double distance) ClosestPoint(Point p);
     }
 
     public record struct Point(double x, double y)
@@ -89,31 +95,37 @@ namespace vcarve
     {
         public readonly Point StartNormal;
         public readonly Point EndNormal;
+        private readonly Point _mid;
+        private readonly double s;
+        private readonly double a;
 
         public JoinSegment(Point p, Point startNormal, Point endNormal)
         {
             Start = p;
             End = p;
-            StartNormal = startNormal;
-            EndNormal = endNormal;
+            StartNormal = startNormal.Normalize();
+            EndNormal = endNormal.Normalize();
+            s = StartNormal.ToPolarAngle();
+            a = AngleBetween(StartNormal, EndNormal);
+            _mid = new Point(Math.Cos(s + a * 0.5), Math.Sin(s + a * 0.5));
             _bbox = new Rect(p, p);
         }
 
         private Rect _bbox;
         public override Rect BoundingBox() => _bbox;
 
-        public Point Normal(double t)
+        public override Point NormalAt(double t)
         {
             if (t <= 0) return StartNormal;
             if (t >= 1) return EndNormal;
-            var s = StartNormal.ToPolarAngle();
-            var a = AngleBetween(StartNormal, EndNormal);
             if (a > 0)
-                return (StartNormal + EndNormal).Normalize(); // TODO: Avoid ending up with this case - an inner angle does not need a join
+                return _mid; // TODO: Avoid ending up with this case - an inner angle does not need a join
             return new Point(Math.Cos(s + a * t), Math.Sin(s + a * t));
         }
 
-        public (Point point, double distance) ClosestPoint(Point p) => (Start, (Start - p).Length);
+        public override (Point point, double distance) ClosestPoint(Point p) => (Start, (Start - p).Length);
+
+        public override Point PointAt(double t) => Start;
     }
 
     class LineSegment : Segment
@@ -128,7 +140,7 @@ namespace vcarve
 
         public Point ToVector => new Point(End.x - Start.x, End.y - Start.y);
 
-        public Point PointAt(double t)
+        public override Point PointAt(double t)
         {
             // return the point at t along the line segment
             return new Point(Start.x + t * (End.x - Start.x), Start.y + t * (End.y - Start.y));
@@ -143,7 +155,7 @@ namespace vcarve
         public override Rect BoundingBox() => _bbox ??= new Rect(new Point(Math.Min(Start.x, End.x), Math.Min(Start.y, End.y)), new Point(Math.Max(Start.x, End.x), Math.Max(Start.y, End.y)));
 
         private Point? _normal;
-        public Point Normal()
+        public override Point NormalAt(double t)
         {
             if (!_normal.HasValue)
             {
@@ -152,7 +164,7 @@ namespace vcarve
                 var v = ToVector;
                 _normal = new Point(-v.y / Length, v.x / Length);
             }
-            return _normal.Value;
+            return _normal.Value * winding;
         }
 
         /// <summary>
@@ -160,7 +172,7 @@ namespace vcarve
         /// </summary>
         /// <param name="p"></param>
         /// <returns></returns>
-        public (Point point, double distance) ClosestPoint(Point p)
+        public override (Point point, double distance) ClosestPoint(Point p)
         {
             // Calculate the closest point on the line segment to the given point and the distance between them
             var v = ToVector;
@@ -182,10 +194,15 @@ namespace vcarve
         private Bezier _bez;
 
         protected abstract Bezier CreateBezier();
-        public Bezier Bez { get { return _bez ??= CreateBezier(); } }
+        private Bezier Bez { get { return _bez ??= CreateBezier(); } }
 
         private Rect? _bbox;
         public override Rect BoundingBox() => _bbox ??= Bez.BoundingBox();
+
+        public override Point PointAt(double t) => Bez.Compute(t);
+        public override Point NormalAt(double t) => (Point)Bez.Normal(t) * winding;
+
+        public override (Point point, double distance) ClosestPoint(Point p) => Bez.Project(p);
     }
 
     class QuadraticBezierSegment : BezierSegment

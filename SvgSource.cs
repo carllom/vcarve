@@ -99,6 +99,8 @@ namespace vcarve
             var pathIdx = 0;
             var segments = new List<Segment>();
             string command = string.Empty;
+            double direction = 0;
+            int winding = 0;
             for (int i = 0; i < tokens.Length;)
             {
                 // New command
@@ -138,10 +140,11 @@ namespace vcarve
                             var y1 = Number(tokens[i++]);
                             var end = new Point(x1, y1);
                             var ls = new LineSegment(current, end) { pathIdx = pathIdx };
-                            if (initialNormal == Point.Uninitalized) initialNormal = ls.Normal();
+                            if (initialNormal == Point.Uninitalized) initialNormal = ls.NormalAt(0);
                             segments.Add(ls);
                             current = end;
-                            currentNormal = ls.Normal();
+                            currentNormal = ls.NormalAt(1);
+                            direction += (ls.End.x - ls.Start.x) * (ls.End.y + ls.Start.y);
                         }
                         break;
                     case "l": // Line (relative)
@@ -150,9 +153,11 @@ namespace vcarve
                             var y1r = current.y + Number(tokens[i++]);
                             var end = new Point(x1r, y1r);
                             var ls = new LineSegment(current, end) { pathIdx = pathIdx };
-                            if (initialNormal == Point.Uninitalized) initialNormal = ls.Normal();
+                            if (initialNormal == Point.Uninitalized) initialNormal = ls.NormalAt(0);
                             segments.Add(ls);
                             current = end;
+                            currentNormal = ls.NormalAt(1);
+                            direction += (ls.End.x - ls.Start.x) * (ls.End.y + ls.Start.y);
                         }
                         break;
                     case "H": // Horizontal line
@@ -160,10 +165,11 @@ namespace vcarve
                             var x1 = Number(tokens[i++]);
                             var end = new Point(x1, current.y);
                             var ls = new LineSegment(current, end) { pathIdx = pathIdx };
-                            if (initialNormal == Point.Uninitalized) initialNormal = ls.Normal();
+                            if (initialNormal == Point.Uninitalized) initialNormal = ls.NormalAt(0);
                             segments.Add(ls);
                             current = end;
-                            currentNormal = ls.Normal();
+                            currentNormal = ls.NormalAt(1);
+                            direction += (ls.End.x - ls.Start.x) * (ls.End.y + ls.Start.y);
                         }
                         break;
                     case "h": // Horizontal line (relative)
@@ -171,10 +177,11 @@ namespace vcarve
                             var x1r = current.x + Number(tokens[i++]);
                             var end = new Point(x1r, current.y);
                             var ls = new LineSegment(current, end) { pathIdx = pathIdx };
-                            if (initialNormal == Point.Uninitalized) initialNormal = ls.Normal();
+                            if (initialNormal == Point.Uninitalized) initialNormal = ls.NormalAt(0);
                             segments.Add(ls);
                             current = end;
-                            currentNormal = ls.Normal();
+                            currentNormal = ls.NormalAt(1);
+                            direction += (ls.End.x - ls.Start.x) * (ls.End.y + ls.Start.y);
                         }
                         break;
                     case "V": // Vertical line
@@ -182,10 +189,11 @@ namespace vcarve
                             var y1 = Number(tokens[i++]);
                             var end = new Point(current.x, y1);
                             var ls = new LineSegment(current, end) { pathIdx = pathIdx };
-                            if (initialNormal == Point.Uninitalized) initialNormal = ls.Normal();
+                            if (initialNormal == Point.Uninitalized) initialNormal = ls.NormalAt(0);
                             segments.Add(ls);
                             current = end;
-                            currentNormal = ls.Normal();
+                            currentNormal = ls.NormalAt(1);
+                            direction += (ls.End.x - ls.Start.x) * (ls.End.y + ls.Start.y);
                         }
                         break;
                     case "v": // Vertical line (relative)
@@ -193,10 +201,11 @@ namespace vcarve
                             var y1r = current.y + Number(tokens[i++]);
                             var end = new Point(current.x, y1r);
                             var ls = new LineSegment(current, end) { pathIdx = pathIdx };
-                            if (initialNormal == Point.Uninitalized) initialNormal = ls.Normal();
+                            if (initialNormal == Point.Uninitalized) initialNormal = ls.NormalAt(0);
                             segments.Add(ls);
                             current = end;
-                            currentNormal = ls.Normal();
+                            currentNormal = ls.NormalAt(1);
+                            direction += (ls.End.x - ls.Start.x) * (ls.End.y + ls.Start.y);
                         }
                         break;
                     case "C": // Cubic Bezier curve
@@ -209,10 +218,11 @@ namespace vcarve
                             var yend = Number(tokens[i++]);
                             var end = new Point(xend, yend);
                             var cbs = new CubicBezierSegment(current, new Point(c1x, c1y), new Point(c2x, c2y), end) { pathIdx = pathIdx };
-                            if (initialNormal == Point.Uninitalized) initialNormal = cbs.Bez.Normal(0);
+                            if (initialNormal == Point.Uninitalized) initialNormal = cbs.NormalAt(0);
                             segments.Add(cbs);
                             current = end;
-                            currentNormal = cbs.Bez.Normal(1);
+                            currentNormal = cbs.NormalAt(1);
+                            direction += (cbs.End.x - cbs.Start.x) * (cbs.End.y + cbs.Start.y);
                         }
                         break;
                     case "c": // Cubic Bezier curve (relative)
@@ -224,11 +234,12 @@ namespace vcarve
                             var xend = current.x + Number(tokens[i++]);
                             var yend = current.y + Number(tokens[i++]);
                             var end = new Point(xend, yend);
-                            var cbs = new CubicBezierSegment(current, new Point(c1x, c1y), new Point(c2x, c2y), end) { pathIdx = pathIdx };
-                            if (initialNormal == Point.Uninitalized) initialNormal = cbs.Bez.Normal(0);
+                            Segment cbs = new CubicBezierSegment(current, new Point(c1x, c1y), new Point(c2x, c2y), end) { pathIdx = pathIdx };
+                            if (initialNormal == Point.Uninitalized) initialNormal = cbs.NormalAt(0);
                             segments.Add(cbs);
                             current = end;
-                            currentNormal = cbs.Bez.Normal(1);
+                            currentNormal = cbs.NormalAt(1);
+                            direction += (cbs.End.x - cbs.Start.x) * (cbs.End.y + cbs.Start.y);
                         }
                         break;
                     case "Q": // Quadratic curve
@@ -241,9 +252,11 @@ namespace vcarve
                             var end = new Point(xend, yend);
                             var qbs = new QuadraticBezierSegment(current, control, end) { pathIdx = pathIdx };
                             if (initialNormal == Point.Uninitalized) initialNormal = qbs.Bez.Normal(0);
+                            if (initialNormal == Point.Uninitalized) initialNormal = qbs.NormalAt(0);
                             segments.Add(qbs);
                             current = end;
-                            currentNormal = qbs.Bez.Normal(1);
+                            currentNormal = qbs.NormalAt(1);
+                            direction += (qbs.End.x - qbs.Start.x) * (qbs.End.y + qbs.Start.y);
                         }
                         break;
                     case "q": // Quadratic curve (relative)
@@ -256,9 +269,11 @@ namespace vcarve
                             var end = new Point(xend, yend);
                             var qbs = new QuadraticBezierSegment(current, control, end) { pathIdx = pathIdx };
                             if (initialNormal == Point.Uninitalized) initialNormal = qbs.Bez.Normal(0);
+                            if (initialNormal == Point.Uninitalized) initialNormal = qbs.NormalAt(0);
                             segments.Add(qbs);
                             current = end;
-                            currentNormal = qbs.Bez.Normal(1);
+                            currentNormal = qbs.NormalAt(1);
+                            direction += (qbs.End.x - qbs.Start.x) * (qbs.End.y + qbs.Start.y);
                         }
                         break;
                     case "S": // Multi-segment cubic Bezier curve
@@ -273,21 +288,32 @@ namespace vcarve
                         break;
                     case "Z": // Close path
                     case "z":
-                        if (RTP((current-initial).Length) == 0) // No distance gap between the current and initial point - close with a join
+                        direction += (initial.x - current.x) * (initial.y + current.y);
+                        if (winding == 0) winding = direction > 0 ? -1 : 1;
+                        if (RTP((current - initial).Length) == 0) // No distance gap between the current and initial point - close with a join
                         {
                             if (currentNormal != initialNormal) // Only necessary to add the join if there is a normal gap
-                                segments.Add(new JoinSegment(current, currentNormal, initialNormal) { pathIdx = pathIdx });
+                            {
+                                var a = Segment.AngleBetween(currentNormal * winding, initialNormal * winding);
+                                if (a < 0) // Only for outer corners
+                                    segments.Add(new JoinSegment(current, currentNormal * winding, initialNormal * winding) { pathIdx = pathIdx }); // Make sure the join normals already take winding into account
+                        }
                         }
                         else // There is a distance gap - close with a line
                         {
                             var ls = new LineSegment(current, initial) { pathIdx = pathIdx };
                             segments.Add(ls);
-                            if (ls.Normal() != initialNormal) // Also add a join if there is a normal gap between the closing line and the initial normal
-                                segments.Add(new JoinSegment(initial, ls.Normal(), initialNormal) { pathIdx = pathIdx });
+                            if (ls.NormalAt(1) != initialNormal) // Also add a join if there is a normal gap between the closing line and the initial normal
+                            {
+                                var a = Segment.AngleBetween(ls.NormalAt(1) * winding, initialNormal * winding);
+                                if (a < 0) // Only for outer corners
+                                    segments.Add(new JoinSegment(initial, ls.NormalAt(1) * winding, initialNormal * winding) { pathIdx = pathIdx }); // Make sure the join normals already take winding into account
                         }
-                           
+                        }
+                        segments.Where(s => s.pathIdx == pathIdx).ToList().ForEach(s => s.winding = winding);
                         current = initial;
                         pathIdx++; // Next sub-path index
+                        direction = 0;
                         break;
                     default:
                         throw new NotImplementedException($"Command '{command}' not implemented yet");
@@ -301,8 +327,8 @@ namespace vcarve
             {
                 if (segments[sIdx] is LineSegment ls1 && segments[sIdx + 1] is LineSegment ls2 && ls1.pathIdx == ls2.pathIdx && ls1.End == ls2.Start)
                 {
-                    var normal = ls1.Normal();
-                    var normal2 = ls2.Normal();
+                    var normal = ls1.NormalAt(1);
+                    var normal2 = ls2.NormalAt(0);
                     var a = Segment.AngleBetween(normal, normal2);
                     if (a < 0) // Only for outer corners
                         segments.Insert(sIdx + 1, new JoinSegment(ls1.End, normal, normal2) { pathIdx = ls1.pathIdx });
@@ -328,23 +354,19 @@ namespace vcarve
                 switch (segment)
                 {
                     case CubicBezierSegment cbSeg:
-                        var cbez = cbSeg.Bez;
-
                         for (double t = 0; t <= 1; t = Math.Round(t + TraceStep, tsNoD))
                         {
-                            Point p = cbez.Compute(t); // Point on traced curve
-                            Point n = cbez.Normal(t); // Normal at current t
+                            Point p = cbSeg.PointAt(t); // Point on traced curve
+                            Point n = cbSeg.NormalAt(t); // Normal at current t
                             var opt = FindOptimalDepth(neighbourSegs, t, p, n);
                             result.Add(new(opt.toolCenter, opt.depth, cbSeg.pathIdx));
                         }
                         break;
                     case QuadraticBezierSegment qbSeg:
-                        var qbez = qbSeg.Bez;
-
                         for (double t = 0; t <= 1; t = Math.Round(t + TraceStep, tsNoD))
                         {
-                            Point p = qbez.Compute(t); // Point on traced curve
-                            Point n = qbez.Normal(t); // Normal at current t
+                            Point p = qbSeg.PointAt(t); // Point on traced curve
+                            Point n = qbSeg.NormalAt(t); // Normal at current t
                             var opt = FindOptimalDepth(neighbourSegs, t, p, n);
                             result.Add(new(opt.toolCenter, opt.depth, qbSeg.pathIdx));
                         }
@@ -353,7 +375,7 @@ namespace vcarve
                         for (double t = 0; t <= 1; t = Math.Round(t + TraceStep, tsNoD))
                         {
                             Point p = line.PointAt(t); // Point on line
-                            Point n = line.Normal(); // Line normal
+                            Point n = line.NormalAt(t); // Line normal
                             var opt = FindOptimalDepth(neighbourSegs, t, p, n);
                             result.Add(new(opt.toolCenter, opt.depth, line.pathIdx));
                         }
@@ -362,7 +384,7 @@ namespace vcarve
                         for (double t = 0; t <= 1; t = Math.Round(t + TraceStep, tsNoD))
                         {
                             Point p = join.Start; // Join point
-                            Point n = join.Normal(t);
+                            Point n = join.NormalAt(t);
                             var opt = FindOptimalDepth(neighbourSegs, t, p, n);
                             result.Add(new(opt.toolCenter, opt.depth, join.pathIdx));
                         }
@@ -416,9 +438,9 @@ namespace vcarve
             switch (oseg)
             {
                 case CubicBezierSegment cbseg:
-                    return cbseg.Bez.Project(tc);
+                    return cbseg.ClosestPoint(tc);
                 case QuadraticBezierSegment qbseg:
-                    return qbseg.Bez.Project(tc);
+                    return qbseg.ClosestPoint(tc);
                 case LineSegment line:
                     return line.ClosestPoint(tc);
                 case JoinSegment join:
@@ -534,33 +556,38 @@ namespace vcarve
         private string VisualizeNormals(IEnumerable<Segment> s)
         {
             var sb = new StringBuilder();
+            var pi = -1;
             foreach (var seg in s)
             {
+                if (seg.pathIdx != pi)
+                {
+                    pi = seg.pathIdx;
+                    sb.AppendLine($"<!-- new subpath #{pi}, winding={seg.winding} -->");
+                }
+
                 switch (seg)
                 {
                     case CubicBezierSegment cbseg:
-                        var cbez = cbseg.Bez;
                         for (double t = 0; t <= 1; t = Math.Round(t + TraceStep, tsNoD))
                         {
-                            Point p = cbez.Compute(t);
-                            Point n = cbez.Normal(t);
+                            Point p = cbseg.PointAt(t);
+                            Point n = cbseg.NormalAt(t);
                             n = n.Normalize();
                             sb.AppendSvgLine(p, p + n, 0.1, "lime");
                         }
                         break;
                     case QuadraticBezierSegment qbseg:
-                        var qbez = qbseg.Bez;
                         for (double t = 0; t <= 1; t = Math.Round(t + TraceStep, tsNoD))
                         {
-                            Point p = qbez.Compute(t);
-                            Point n = qbez.Normal(t);
+                            Point p = qbseg.PointAt(t);
+                            Point n = qbseg.NormalAt(t);
                             n = n.Normalize();
                             sb.AppendSvgLine(p, p + n, 0.1, "lime");
                         }
                         break;
                     case LineSegment line:
                         {
-                            Point n = line.Normal();
+                            Point n = line.NormalAt(0);
                             for (var t = 0d; t <= 1; t += .1)
                             {
                                 Point p = line.PointAt(t);
@@ -571,7 +598,7 @@ namespace vcarve
                     case JoinSegment join:
                         for (double t = 0; t <= 1; t = Math.Round(t + TraceStep, tsNoD))
                         {
-                            Point n = join.Normal(t);
+                            Point n = join.NormalAt(t);
                             sb.AppendSvgLine(join.Start, join.Start + n, 0.1, "lime");
                         }
                         break;
@@ -644,13 +671,13 @@ namespace vcarve
                 {
                     case CubicBezierSegment cbseg:
                         {
-                            var bbox = cbseg.Bez.BoundingBox();
+                            var bbox = cbseg.BoundingBox();
                             sb.AppendLine($"<rect x=\"{bbox.MinX}\" y=\"{bbox.MinY}\" width=\"{bbox.Width}\" height=\"{bbox.Height}\" fill=\"black\" stroke=\"red\" stroke-width=\"0.1\" opacity=\"0.2\" />");
                         }
                         break;
                     case QuadraticBezierSegment qbseg:
                         {
-                            var bbox = qbseg.Bez.BoundingBox();
+                            var bbox = qbseg.BoundingBox();
                             sb.AppendLine($"<rect x=\"{bbox.MinX}\" y=\"{bbox.MinY}\" width=\"{bbox.Width}\" height=\"{bbox.Height}\" fill=\"black\" stroke=\"red\" stroke-width=\"0.1\" opacity=\"0.2\" />");
                         }
                         break;
